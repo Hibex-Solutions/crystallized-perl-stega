@@ -1,0 +1,27 @@
+% layout 'default', title => 'Usuários';
+
+<h1 class="h3 mb-4">Usuários</h1>
+
+<div class="table-responsive">
+  <table class="table table-hover">
+    <thead>
+      <tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Cadastrado em</th></tr>
+    </thead>
+    <tbody>
+      % for my $u (@{$users // []}) {
+      <tr>
+        <td>
+          % if ($u->{avatar_url}) {
+          <img src="<%= $u->{avatar_url} %>" width="24" height="24"
+               class="rounded-circle me-2" alt="">
+          % }
+          <%= $u->{display_name} %>
+        </td>
+        <td><%= $u->{email} %></td>
+        <td><span class="badge bg-secondary"><%= $u->{role} %></span></td>
+        <td><%= $u->{created_at} %></td>
+      </tr>
+      % }
+    </tbody>
+  </table>
+</div>

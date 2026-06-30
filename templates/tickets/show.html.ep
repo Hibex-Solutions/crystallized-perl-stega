@@ -1,0 +1,106 @@
+% layout 'default', title => "#$ticket->{id} — $ticket->{title}";
+% my $user = stash('current_user') // {};
+% my $role = $user->{role} // 'customer';
+% my $can_manage = $role eq 'agent' || $role eq 'admin';
+
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/tickets">Tickets</a></li>
+    <li class="breadcrumb-item active">#<%= $ticket->{id} %></li>
+  </ol>
+</nav>
+
+<div class="row">
+  <div class="col-md-8">
+    <h1 class="h4 mb-1"><%= $ticket->{title} %></h1>
+    <p class="text-muted mb-3">
+      Aberto por <strong><%= $ticket->{author_name} %></strong> em
+      <%= $ticket->{created_at} %> •
+      Produto: <strong><%= $ticket->{product_name} %></strong>
+    </p>
+
+    <div class="card mb-4">
+      <div class="card-body">
+        <pre class="mb-0" style="white-space: pre-wrap;"><%= $ticket->{body} %></pre>
+      </div>
+    </div>
+
+    <h2 class="h5 mb-3">Discussão</h2>
+
+    % for my $comment (@{$comments // []}) {
+    <div class="card mb-2 <%= $comment->{is_internal} ? 'comment-internal' : '' %>">
+      <div class="card-body">
+        <div class="d-flex justify-content-between mb-2">
+          <strong><%= $comment->{author_name} %></strong>
+          <small class="text-muted">
+            <%= $comment->{created_at} %>
+            % if ($comment->{is_internal}) {
+            <span class="badge bg-warning text-dark ms-1">Interno</span>
+            % }
+          </small>
+        </div>
+        <p class="mb-0" style="white-space: pre-wrap;"><%= $comment->{body} %></p>
+      </div>
+    </div>
+    % }
+
+    % if ($ticket->{status} ne 'closed') {
+    <div class="card mt-3">
+      <div class="card-header">Adicionar comentário</div>
+      <div class="card-body">
+        <form method="POST" action="/tickets/<%= $ticket->{id} %>/comments">
+          <div class="mb-3">
+            <textarea name="body" class="form-control" rows="3"
+                      placeholder="Seu comentário..." required></textarea>
+          </div>
+          % if ($can_manage) {
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="is_internal" value="1" id="internal">
+            <label class="form-check-label" for="internal">Comentário interno (visível apenas para agentes)</label>
+          </div>
+          % }
+          <button type="submit" class="btn btn-primary">Comentar</button>
+        </form>
+      </div>
+    </div>
+    % }
+  </div>
+
+  <div class="col-md-4">
+    <div class="card mb-3">
+      <div class="card-header">Detalhes</div>
+      <div class="card-body">
+        <dl class="mb-0">
+          <dt>Status</dt>
+          <dd><span class="badge badge-<%= $ticket->{status} %> text-white"><%= $ticket->{status} %></span></dd>
+          <dt>Prioridade</dt>
+          <dd><%= $ticket->{priority} %></dd>
+          <dt>Responsável</dt>
+          <dd><%= $ticket->{assignee_name} // '—' %></dd>
+          % if ($ticket->{resolved_at}) {
+          <dt>Resolvido em</dt>
+          <dd><%= $ticket->{resolved_at} %></dd>
+          % }
+        </dl>
+      </div>
+    </div>
+
+    % if ($can_manage && $ticket->{status} ne 'closed') {
+    <div class="card">
+      <div class="card-header">Ações</div>
+      <div class="card-body">
+        <form method="POST" action="/tickets/<%= $ticket->{id} %>/status">
+          <div class="mb-2">
+            <select name="status" class="form-select form-select-sm">
+              % for my $s (qw(open in_progress waiting resolved closed)) {
+              <option value="<%= $s %>" <%= $ticket->{status} eq $s ? 'selected' : '' %>><%= $s %></option>
+              % }
+            </select>
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">Atualizar Status</button>
+        </form>
+      </div>
+    </div>
+    % }
+  </div>
+</div>

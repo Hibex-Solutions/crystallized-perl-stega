@@ -1,0 +1,28 @@
+# Força LF em todos os arquivos de texto
+* text=auto eol=lf
+
+# Perl
+*.pl text eol=lf
+*.pm text eol=lf
+*.t  text eol=lf
+
+# Shell
+*.sh text eol=lf
+
+# SQL
+*.sql text eol=lf
+
+# YAML / JSON / TOML
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+
+# Markdown / Documentação
+*.md   text eol=lf
+
+# Mojolicious templates
+*.ep   text eol=lf
+
+# PowerShell (Windows — manter CRLF)
+*.ps1 text eol=crlf

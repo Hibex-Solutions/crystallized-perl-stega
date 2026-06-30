@@ -1,0 +1,1115 @@
+# carton snapshot format: version 1.0
+DISTRIBUTIONS
+  B-Hooks-EndOfScope-0.28
+    pathname: E/ET/ETHER/B-Hooks-EndOfScope-0.28.tar.gz
+    provides:
+      B::Hooks::EndOfScope 0.28
+      B::Hooks::EndOfScope::PP 0.28
+      B::Hooks::EndOfScope::XS 0.28
+    requirements:
+      ExtUtils::MakeMaker 0
+      Hash::Util::FieldHash 0
+      Module::Implementation 0.05
+      Scalar::Util 0
+      Sub::Exporter::Progressive 0.001006
+      Text::ParseWords 0
+      Tie::Hash 0
+      Variable::Magic 0.48
+      perl 5.006001
+      strict 0
+      warnings 0
+  Class-Method-Modifiers-2.15
+    pathname: E/ET/ETHER/Class-Method-Modifiers-2.15.tar.gz
+    provides:
+      Class::Method::Modifiers 2.15
+    requirements:
+      B 0
+      Carp 0
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      base 0
+      perl 5.006
+      strict 0
+      warnings 0
+  Clone-0.50
+    pathname: A/AT/ATOOMIC/Clone-0.50.tar.gz
+    provides:
+      Clone 0.50
+    requirements:
+      ExtUtils::MakeMaker 0
+  Clone-Choose-0.010
+    pathname: H/HE/HERMES/Clone-Choose-0.010.tar.gz
+    provides:
+      Clone::Choose 0.010
+    requirements:
+      ExtUtils::MakeMaker 0
+      Storable 0
+      perl 5.008001
+  Crypt-JWT-0.038
+    pathname: M/MI/MIK/Crypt-JWT-0.038.tar.gz
+    provides:
+      Crypt::JWT 0.038
+      Crypt::KeyWrap 0.038
+    requirements:
+      Compress::Raw::Zlib 2.057
+      CryptX 0.067
+      Exporter 5.57
+      ExtUtils::MakeMaker 0
+      JSON 0
+      Scalar::Util 0
+      Test::More 0.88
+      perl 5.006
+  CryptX-0.090
+    pathname: M/MI/MIK/CryptX-0.090.tar.gz
+    provides:
+      Crypt::ASN1 0.090
+      Crypt::AuthEnc 0.090
+      Crypt::AuthEnc::CCM 0.090
+      Crypt::AuthEnc::ChaCha20Poly1305 0.090
+      Crypt::AuthEnc::EAX 0.090
+      Crypt::AuthEnc::GCM 0.090
+      Crypt::AuthEnc::GCMSIV 0.090
+      Crypt::AuthEnc::OCB 0.090
+      Crypt::AuthEnc::SIV 0.090
+      Crypt::AuthEnc::XChaCha20Poly1305 0.090
+      Crypt::Checksum 0.090
+      Crypt::Checksum::Adler32 0.090
+      Crypt::Checksum::CRC32 0.090
+      Crypt::Cipher 0.090
+      Crypt::Cipher::AES 0.090
+      Crypt::Cipher::ARIA 0.090
+      Crypt::Cipher::Anubis 0.090
+      Crypt::Cipher::Blowfish 0.090
+      Crypt::Cipher::CAST5 0.090
+      Crypt::Cipher::Camellia 0.090
+      Crypt::Cipher::DES 0.090
+      Crypt::Cipher::DES_EDE 0.090
+      Crypt::Cipher::IDEA 0.090
+      Crypt::Cipher::KASUMI 0.090
+      Crypt::Cipher::Khazad 0.090
+      Crypt::Cipher::MULTI2 0.090
+      Crypt::Cipher::Noekeon 0.090
+      Crypt::Cipher::RC2 0.090
+      Crypt::Cipher::RC5 0.090
+      Crypt::Cipher::RC6 0.090
+      Crypt::Cipher::SAFERP 0.090
+      Crypt::Cipher::SAFER_K128 0.090
+      Crypt::Cipher::SAFER_K64 0.090
+      Crypt::Cipher::SAFER_SK128 0.090
+      Crypt::Cipher::SAFER_SK64 0.090
+      Crypt::Cipher::SEED 0.090
+      Crypt::Cipher::SM4 0.090
+      Crypt::Cipher::Serpent 0.090
+      Crypt::Cipher::Skipjack 0.090
+      Crypt::Cipher::Twofish 0.090
+      Crypt::Cipher::XTEA 0.090
+      Crypt::Digest 0.090
+      Crypt::Digest::BLAKE2b_160 0.090
+      Crypt::Digest::BLAKE2b_256 0.090
+      Crypt::Digest::BLAKE2b_384 0.090
+      Crypt::Digest::BLAKE2b_512 0.090
+      Crypt::Digest::BLAKE2s_128 0.090
+      Crypt::Digest::BLAKE2s_160 0.090
+      Crypt::Digest::BLAKE2s_224 0.090
+      Crypt::Digest::BLAKE2s_256 0.090
+      Crypt::Digest::CHAES 0.090
+      Crypt::Digest::KangarooTwelve 0.090
+      Crypt::Digest::Keccak224 0.090
+      Crypt::Digest::Keccak256 0.090
+      Crypt::Digest::Keccak384 0.090
+      Crypt::Digest::Keccak512 0.090
+      Crypt::Digest::MD2 0.090
+      Crypt::Digest::MD4 0.090
+      Crypt::Digest::MD5 0.090
+      Crypt::Digest::RIPEMD128 0.090
+      Crypt::Digest::RIPEMD160 0.090
+      Crypt::Digest::RIPEMD256 0.090
+      Crypt::Digest::RIPEMD320 0.090
+      Crypt::Digest::SHA1 0.090
+      Crypt::Digest::SHA224 0.090
+      Crypt::Digest::SHA256 0.090
+      Crypt::Digest::SHA384 0.090
+      Crypt::Digest::SHA3_224 0.090
+      Crypt::Digest::SHA3_256 0.090
+      Crypt::Digest::SHA3_384 0.090
+      Crypt::Digest::SHA3_512 0.090
+      Crypt::Digest::SHA512 0.090
+      Crypt::Digest::SHA512_224 0.090
+      Crypt::Digest::SHA512_256 0.090
+      Crypt::Digest::SHAKE 0.090
+      Crypt::Digest::SM3 0.090
+      Crypt::Digest::Tiger192 0.090
+      Crypt::Digest::TurboSHAKE 0.090
+      Crypt::Digest::Whirlpool 0.090
+      Crypt::KeyDerivation 0.090
+      Crypt::Mac 0.090
+      Crypt::Mac::BLAKE2b 0.090
+      Crypt::Mac::BLAKE2s 0.090
+      Crypt::Mac::F9 0.090
+      Crypt::Mac::HMAC 0.090
+      Crypt::Mac::KMAC 0.090
+      Crypt::Mac::OMAC 0.090
+      Crypt::Mac::PMAC 0.090
+      Crypt::Mac::Pelican 0.090
+      Crypt::Mac::Poly1305 0.090
+      Crypt::Mac::XCBC 0.090
+      Crypt::Misc 0.090
+      Crypt::Mode 0.090
+      Crypt::Mode::CBC 0.090
+      Crypt::Mode::CFB 0.090
+      Crypt::Mode::CTR 0.090
+      Crypt::Mode::ECB 0.090
+      Crypt::Mode::OFB 0.090
+      Crypt::PK 0.090
+      Crypt::PK::DH 0.090
+      Crypt::PK::DSA 0.090
+      Crypt::PK::ECC 0.090
+      Crypt::PK::Ed25519 0.090
+      Crypt::PK::Ed448 0.090
+      Crypt::PK::RSA 0.090
+      Crypt::PK::X25519 0.090
+      Crypt::PK::X448 0.090
+      Crypt::PRNG 0.090
+      Crypt::PRNG::ChaCha20 0.090
+      Crypt::PRNG::Fortuna 0.090
+      Crypt::PRNG::RC4 0.090
+      Crypt::PRNG::Sober128 0.090
+      Crypt::PRNG::Yarrow 0.090
+      Crypt::Stream::ChaCha 0.090
+      Crypt::Stream::RC4 0.090
+      Crypt::Stream::Rabbit 0.090
+      Crypt::Stream::Salsa20 0.090
+      Crypt::Stream::Sober128 0.090
+      Crypt::Stream::Sosemanuk 0.090
+      Crypt::Stream::XChaCha 0.090
+      Crypt::Stream::XSalsa20 0.090
+      CryptX 0.090
+      Math::BigInt::LTM 0.090
+    requirements:
+      ExtUtils::MakeMaker 0
+      Math::BigInt 0
+      Time::HiRes 0
+      perl 5.006
+  DBD-Pg-3.20.2
+    pathname: T/TU/TURNSTEP/DBD-Pg-3.20.2.tar.gz
+    provides:
+      Bundle::DBD::Pg v3.20.2
+      DBD::Pg v3.20.2
+    requirements:
+      DBI 1.614
+      ExtUtils::MakeMaker 6.58
+      File::Temp 0
+      Test::More 0.88
+      Time::HiRes 0
+      version 0
+  DBI-1.649
+    pathname: H/HM/HMBRAND/DBI-1.649.tgz
+    provides:
+      Bundle::DBI 12.008696
+      DBD::DBM 0.08
+      DBD::DBM::Statement 0.08
+      DBD::DBM::Table 0.08
+      DBD::DBM::db 0.08
+      DBD::DBM::dr 0.08
+      DBD::DBM::st 0.08
+      DBD::ExampleP 12.014311
+      DBD::ExampleP::db 12.014311
+      DBD::ExampleP::dr 12.014311
+      DBD::ExampleP::st 12.014311
+      DBD::File 0.45
+      DBD::File::DataSource::File 0.45
+      DBD::File::DataSource::Stream 0.45
+      DBD::File::Statement 0.45
+      DBD::File::Table 0.45
+      DBD::File::TableSource::FileSystem 0.45
+      DBD::File::db 0.45
+      DBD::File::dr 0.45
+      DBD::File::st 0.45
+      DBD::Gofer 0.015327
+      DBD::Gofer::Policy::Base 0.010088
+      DBD::Gofer::Policy::classic 0.010088
+      DBD::Gofer::Policy::pedantic 0.010088
+      DBD::Gofer::Policy::rush 0.010088
+      DBD::Gofer::Transport::Base 0.014121
+      DBD::Gofer::Transport::corostream undef
+      DBD::Gofer::Transport::null 0.010088
+      DBD::Gofer::Transport::pipeone 0.010088
+      DBD::Gofer::Transport::stream 0.014599
+      DBD::Gofer::db 0.015327
+      DBD::Gofer::dr 0.015327
+      DBD::Gofer::st 0.015327
+      DBD::Mem 0.001
+      DBD::Mem::DataSource 0.001
+      DBD::Mem::Statement 0.001
+      DBD::Mem::Table 0.001
+      DBD::Mem::db 0.001
+      DBD::Mem::dr 0.001
+      DBD::Mem::st 0.001
+      DBD::NullP 12.014715
+      DBD::NullP::db 12.014715
+      DBD::NullP::dr 12.014715
+      DBD::NullP::st 12.014715
+      DBD::Proxy 0.2004
+      DBD::Proxy::RPC::PlClient 0.2004
+      DBD::Proxy::db 0.2004
+      DBD::Proxy::dr 0.2004
+      DBD::Proxy::st 0.2004
+      DBD::Sponge 12.010003
+      DBD::Sponge::db 12.010003
+      DBD::Sponge::dr 12.010003
+      DBD::Sponge::st 12.010003
+      DBDI 12.015129
+      DBI 1.649
+      DBI::Const::GetInfo::ANSI 2.008697
+      DBI::Const::GetInfo::ODBC 2.011374
+      DBI::Const::GetInfoReturn 2.008697
+      DBI::Const::GetInfoType 2.008697
+      DBI::DBD 12.015129
+      DBI::DBD::Metadata 2.014214
+      DBI::DBD::SqlEngine 0.06
+      DBI::DBD::SqlEngine::DataSource 0.06
+      DBI::DBD::SqlEngine::Statement 0.06
+      DBI::DBD::SqlEngine::Table 0.06
+      DBI::DBD::SqlEngine::TableSource 0.06
+      DBI::DBD::SqlEngine::TieMeta 0.06
+      DBI::DBD::SqlEngine::TieTables 0.06
+      DBI::DBD::SqlEngine::db 0.06
+      DBI::DBD::SqlEngine::dr 0.06
+      DBI::DBD::SqlEngine::st 0.06
+      DBI::Gofer::Execute 0.014283
+      DBI::Gofer::Request 0.012537
+      DBI::Gofer::Response 0.011566
+      DBI::Gofer::Serializer::Base 0.009950
+      DBI::Gofer::Serializer::DataDumper 0.009950
+      DBI::Gofer::Serializer::Storable 0.015586
+      DBI::Gofer::Transport::Base 0.012537
+      DBI::Gofer::Transport::pipeone 0.012537
+      DBI::Gofer::Transport::stream 0.012537
+      DBI::Profile 2.015065
+      DBI::ProfileData 2.010008
+      DBI::ProfileDumper 2.015325
+      DBI::ProfileDumper::Apache 2.014121
+      DBI::ProfileSubs 0.009396
+      DBI::ProxyServer 0.3005
+      DBI::ProxyServer::db 0.3005
+      DBI::ProxyServer::dr 0.3005
+      DBI::ProxyServer::st 0.3005
+      DBI::SQL::Nano 1.015544
+      DBI::SQL::Nano::Statement_ 1.015544
+      DBI::SQL::Nano::Table_ 1.015544
+      DBI::Util::CacheMemory 0.010315
+      DBI::Util::_accessor 0.009479
+      DBI::common 1.649
+    requirements:
+      ExtUtils::MakeMaker 6.48
+      Test::Simple 0.90
+      perl 5.008001
+  Devel-Cover-1.52
+    pathname: P/PJ/PJCJ/Devel-Cover-1.52.tar.gz
+    provides:
+      Devel::Cover 1.52
+      Devel::Cover::Annotation::Git 1.52
+      Devel::Cover::Annotation::Random 1.52
+      Devel::Cover::Base::Editor 1.52
+      Devel::Cover::Base::Editor::Template::Provider 1.52
+      Devel::Cover::Branch 1.52
+      Devel::Cover::Collection 1.52
+      Devel::Cover::Collection::Template::Provider 1.52
+      Devel::Cover::Condition 1.52
+      Devel::Cover::Condition_and_2 1.52
+      Devel::Cover::Condition_and_3 1.52
+      Devel::Cover::Condition_or_2 1.52
+      Devel::Cover::Condition_or_3 1.52
+      Devel::Cover::Condition_xor_4 1.52
+      Devel::Cover::Criterion 1.52
+      Devel::Cover::DB 1.52
+      Devel::Cover::DB::Criterion 1.52
+      Devel::Cover::DB::Digests 1.52
+      Devel::Cover::DB::File 1.52
+      Devel::Cover::DB::IO 1.52
+      Devel::Cover::DB::IO::Base 1.52
+      Devel::Cover::DB::IO::JSON 1.52
+      Devel::Cover::DB::IO::Sereal 1.52
+      Devel::Cover::DB::IO::Storable 1.52
+      Devel::Cover::DB::Run 1.52
+      Devel::Cover::DB::Structure 1.52
+      Devel::Cover::Html_Common 1.52
+      Devel::Cover::Op 1.52
+      Devel::Cover::Pod 1.52
+      Devel::Cover::Report::Compilation 1.52
+      Devel::Cover::Report::Html 1.52
+      Devel::Cover::Report::Html_basic 1.52
+      Devel::Cover::Report::Html_basic::Template::Provider 1.52
+      Devel::Cover::Report::Html_minimal 1.52
+      Devel::Cover::Report::Html_subtle 1.52
+      Devel::Cover::Report::Html_subtle::Template::Provider 1.52
+      Devel::Cover::Report::Json 1.52
+      Devel::Cover::Report::Nvim 1.52
+      Devel::Cover::Report::Sort 1.52
+      Devel::Cover::Report::Text 1.52
+      Devel::Cover::Report::Text2 1.52
+      Devel::Cover::Report::Vim 1.52
+      Devel::Cover::Statement 1.52
+      Devel::Cover::Subroutine 1.52
+      Devel::Cover::Test 1.52
+      Devel::Cover::Time 1.52
+      Devel::Cover::Truth_Table 1.52
+      Devel::Cover::Truth_Table::Row 1.52
+      Devel::Cover::Util 1.52
+      Devel::Cover::Web 1.52
+    requirements:
+      Digest::MD5 0
+      ExtUtils::MakeMaker 0
+      HTML::Entities 3.69
+      Storable 0
+      Test::More 0
+      perl 5.020
+  Digest-HMAC-1.05
+    pathname: A/AR/ARODLAND/Digest-HMAC-1.05.tar.gz
+    provides:
+      Digest::HMAC 1.05
+      Digest::HMAC_MD5 1.05
+      Digest::HMAC_SHA1 1.05
+    requirements:
+      Digest::MD5 2
+      Digest::SHA 1
+      ExtUtils::MakeMaker 0
+      perl 5.008001
+  Dist-CheckConflicts-0.11
+    pathname: D/DO/DOY/Dist-CheckConflicts-0.11.tar.gz
+    provides:
+      Dist::CheckConflicts 0.11
+    requirements:
+      Carp 0
+      Exporter 0
+      ExtUtils::MakeMaker 6.30
+      Module::Runtime 0.009
+      base 0
+      strict 0
+      warnings 0
+  Encode-Locale-1.05
+    pathname: G/GA/GAAS/Encode-Locale-1.05.tar.gz
+    provides:
+      Encode::Locale 1.05
+    requirements:
+      Encode 2
+      Encode::Alias 0
+      ExtUtils::MakeMaker 0
+      perl 5.008
+  HTML-Parser-3.85
+    pathname: O/OA/OALDERS/HTML-Parser-3.85.tar.gz
+    provides:
+      HTML::Entities 3.85
+      HTML::Filter 3.85
+      HTML::HeadParser 3.85
+      HTML::LinkExtor 3.85
+      HTML::Parser 3.85
+      HTML::PullParser 3.85
+      HTML::TokeParser 3.85
+    requirements:
+      Carp 0
+      Exporter 0
+      ExtUtils::MakeMaker 6.52
+      HTML::Tagset 0
+      HTTP::Headers 0
+      IO::File 0
+      URI 0
+      URI::URL 0
+      XSLoader 0
+      strict 0
+  HTML-Tagset-3.24
+    pathname: P/PE/PETDANCE/HTML-Tagset-3.24.tar.gz
+    provides:
+      HTML::Tagset 3.24
+    requirements:
+      ExtUtils::MakeMaker 6.46
+      perl 5.010001
+  HTTP-Date-6.07
+    pathname: O/OA/OALDERS/HTTP-Date-6.07.tar.gz
+    provides:
+      HTTP::Date 6.07
+    requirements:
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      Time::Local 1.28
+      Time::Zone 0
+      perl 5.006002
+      strict 0
+  HTTP-Message-7.02
+    pathname: O/OA/OALDERS/HTTP-Message-7.02.tar.gz
+    provides:
+      HTTP::Config 7.02
+      HTTP::Headers 7.02
+      HTTP::Headers::Auth 7.02
+      HTTP::Headers::ETag 7.02
+      HTTP::Headers::Util 7.02
+      HTTP::Message 7.02
+      HTTP::Request 7.02
+      HTTP::Request::Common 7.02
+      HTTP::Response 7.02
+      HTTP::Status 7.02
+    requirements:
+      Carp 0
+      Clone 0.46
+      Compress::Raw::Bzip2 0
+      Compress::Raw::Zlib 2.062
+      Encode 3.01
+      Encode::Locale 1
+      Exporter 5.57
+      ExtUtils::MakeMaker 0
+      File::Spec 0
+      HTTP::Date 6
+      IO::Compress::Bzip2 2.021
+      IO::Compress::Deflate 0
+      IO::Compress::Gzip 0
+      IO::HTML 0
+      IO::Uncompress::Inflate 0
+      IO::Uncompress::RawInflate 0
+      LWP::MediaTypes 6
+      MIME::Base64 2.1
+      MIME::QuotedPrint 0
+      URI 1.10
+      parent 0
+      perl 5.008001
+      strict 0
+      warnings 0
+  Hash-Merge-0.302
+    pathname: H/HE/HERMES/Hash-Merge-0.302.tar.gz
+    provides:
+      Hash::Merge 0.302
+    requirements:
+      Clone::Choose 0.008
+      ExtUtils::MakeMaker 6.64
+      Scalar::Util 0
+      perl 5.008001
+  IO-HTML-1.004
+    pathname: C/CJ/CJM/IO-HTML-1.004.tar.gz
+    provides:
+      IO::HTML 1.004
+    requirements:
+      Carp 0
+      Encode 2.10
+      Exporter 5.57
+      ExtUtils::MakeMaker 0
+      perl 5.008
+  JSON-4.11
+    pathname: I/IS/ISHIGAKI/JSON-4.11.tar.gz
+    provides:
+      JSON 4.11
+      JSON::Backend::PP 4.11
+    requirements:
+      ExtUtils::MakeMaker 0
+      Scalar::Util 1.08
+      Test::More 0.88
+  LWP-MediaTypes-6.04
+    pathname: O/OA/OALDERS/LWP-MediaTypes-6.04.tar.gz
+    provides:
+      LWP::MediaTypes 6.04
+    requirements:
+      Carp 0
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      File::Basename 0
+      Scalar::Util 0
+      perl 5.006002
+      strict 0
+  MIME-Base32-1.303
+    pathname: R/RE/REHSACK/MIME-Base32-1.303.tar.gz
+    provides:
+      MIME::Base32 1.303
+    requirements:
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      perl 5.008001
+      utf8 0
+  MRO-Compat-0.15
+    pathname: H/HA/HAARG/MRO-Compat-0.15.tar.gz
+    provides:
+      MRO::Compat 0.15
+    requirements:
+      ExtUtils::MakeMaker 0
+      perl 5.006
+  Math-Int64-0.57
+    pathname: S/SA/SALVA/Math-Int64-0.57.tar.gz
+    provides:
+      Math::Int64 0.57
+      Math::Int64::die_on_overflow undef
+      Math::Int64::native_if_available undef
+      Math::UInt64 undef
+    requirements:
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      XSLoader 0
+      constant 0
+      overload 0
+      perl 5.006
+      strict 0
+      warnings 0
+      warnings::register 0
+  Minion-12.0
+    pathname: S/SR/SRI/Minion-12.0.tar.gz
+    provides:
+      LinkCheck undef
+      LinkCheck::Controller::Links undef
+      LinkCheck::Task::CheckLinks undef
+      Minion 12.0
+      Minion::Backend undef
+      Minion::Backend::Pg undef
+      Minion::Command::minion undef
+      Minion::Command::minion::job undef
+      Minion::Command::minion::schedule undef
+      Minion::Command::minion::worker undef
+      Minion::Iterator undef
+      Minion::Job undef
+      Minion::Util undef
+      Minion::Worker undef
+      Mojolicious::Plugin::Minion undef
+      Mojolicious::Plugin::Minion::Admin undef
+    requirements:
+      ExtUtils::MakeMaker 0
+      Mojolicious 9.0
+      YAML::XS 0.67
+      perl 5.020
+  Module-Implementation-0.09
+    pathname: D/DR/DROLSKY/Module-Implementation-0.09.tar.gz
+    provides:
+      Module::Implementation 0.09
+    requirements:
+      Carp 0
+      ExtUtils::MakeMaker 0
+      Module::Runtime 0.012
+      Try::Tiny 0
+      strict 0
+      warnings 0
+  Module-Runtime-0.018
+    pathname: H/HA/HAARG/Module-Runtime-0.018.tar.gz
+    provides:
+      Module::Runtime 0.018
+    requirements:
+      ExtUtils::MakeMaker 0
+      perl 5.006000
+  Mojo-Pg-5.0
+    pathname: S/SR/SRI/Mojo-Pg-5.0.tar.gz
+    provides:
+      Mojo::Pg 5.0
+      Mojo::Pg::Database undef
+      Mojo::Pg::Migrations undef
+      Mojo::Pg::PubSub undef
+      Mojo::Pg::Results undef
+      Mojo::Pg::Transaction undef
+    requirements:
+      DBD::Pg 3.007004
+      ExtUtils::MakeMaker 0
+      Mojo::SQL 0.01
+      Mojolicious 8.50
+      SQL::Abstract::Pg 1.0
+      perl 5.020
+  Mojo-SQL-0.02
+    pathname: S/SR/SRI/Mojo-SQL-0.02.tar.gz
+    provides:
+      Mojo::SQL 0.02
+      Mojo::SQL::Statement undef
+    requirements:
+      ExtUtils::MakeMaker 0
+      Mojolicious 9.41
+      perl 5.020
+  Mojolicious-9.46
+    pathname: S/SR/SRI/Mojolicious-9.46.tar.gz
+    provides:
+      Mojo undef
+      Mojo::Asset undef
+      Mojo::Asset::File undef
+      Mojo::Asset::Memory undef
+      Mojo::Base undef
+      Mojo::BaseUtil undef
+      Mojo::ByteStream undef
+      Mojo::Cache undef
+      Mojo::Collection undef
+      Mojo::Content undef
+      Mojo::Content::MultiPart undef
+      Mojo::Content::Single undef
+      Mojo::Cookie undef
+      Mojo::Cookie::Request undef
+      Mojo::Cookie::Response undef
+      Mojo::DOM undef
+      Mojo::DOM::CSS undef
+      Mojo::DOM::HTML undef
+      Mojo::Date undef
+      Mojo::DynamicMethods undef
+      Mojo::EventEmitter undef
+      Mojo::Exception undef
+      Mojo::File undef
+      Mojo::Headers undef
+      Mojo::HelloWorld undef
+      Mojo::Home undef
+      Mojo::IOLoop undef
+      Mojo::IOLoop::Client undef
+      Mojo::IOLoop::Server undef
+      Mojo::IOLoop::Stream undef
+      Mojo::IOLoop::Subprocess undef
+      Mojo::IOLoop::TLS undef
+      Mojo::JSON undef
+      Mojo::JSON::Pointer undef
+      Mojo::Loader undef
+      Mojo::Log undef
+      Mojo::Message undef
+      Mojo::Message::Request undef
+      Mojo::Message::Response undef
+      Mojo::Parameters undef
+      Mojo::Path undef
+      Mojo::Promise undef
+      Mojo::Reactor undef
+      Mojo::Reactor::EV undef
+      Mojo::Reactor::Poll undef
+      Mojo::SSE undef
+      Mojo::Server undef
+      Mojo::Server::CGI undef
+      Mojo::Server::Daemon undef
+      Mojo::Server::Hypnotoad undef
+      Mojo::Server::Morbo undef
+      Mojo::Server::Morbo::Backend undef
+      Mojo::Server::Morbo::Backend::Poll undef
+      Mojo::Server::PSGI undef
+      Mojo::Server::Prefork undef
+      Mojo::Template undef
+      Mojo::Transaction undef
+      Mojo::Transaction::HTTP undef
+      Mojo::Transaction::WebSocket undef
+      Mojo::URL undef
+      Mojo::Upload undef
+      Mojo::UserAgent undef
+      Mojo::UserAgent::CookieJar undef
+      Mojo::UserAgent::Proxy undef
+      Mojo::UserAgent::Server undef
+      Mojo::UserAgent::Transactor undef
+      Mojo::Util undef
+      Mojo::WebSocket undef
+      Mojolicious 9.46
+      Mojolicious::Command undef
+      Mojolicious::Command::Author::cpanify undef
+      Mojolicious::Command::Author::generate undef
+      Mojolicious::Command::Author::generate::app undef
+      Mojolicious::Command::Author::generate::dockerfile undef
+      Mojolicious::Command::Author::generate::lite_app undef
+      Mojolicious::Command::Author::generate::makefile undef
+      Mojolicious::Command::Author::generate::plugin undef
+      Mojolicious::Command::Author::inflate undef
+      Mojolicious::Command::cgi undef
+      Mojolicious::Command::daemon undef
+      Mojolicious::Command::eval undef
+      Mojolicious::Command::get undef
+      Mojolicious::Command::prefork undef
+      Mojolicious::Command::psgi undef
+      Mojolicious::Command::routes undef
+      Mojolicious::Command::version undef
+      Mojolicious::Commands undef
+      Mojolicious::Controller undef
+      Mojolicious::Lite undef
+      Mojolicious::Plugin undef
+      Mojolicious::Plugin::Config undef
+      Mojolicious::Plugin::DefaultHelpers undef
+      Mojolicious::Plugin::EPLRenderer undef
+      Mojolicious::Plugin::EPRenderer undef
+      Mojolicious::Plugin::HeaderCondition undef
+      Mojolicious::Plugin::JSONConfig undef
+      Mojolicious::Plugin::Mount undef
+      Mojolicious::Plugin::NotYAMLConfig undef
+      Mojolicious::Plugin::TagHelpers undef
+      Mojolicious::Plugins undef
+      Mojolicious::Renderer undef
+      Mojolicious::Routes undef
+      Mojolicious::Routes::Match undef
+      Mojolicious::Routes::Pattern undef
+      Mojolicious::Routes::Route undef
+      Mojolicious::Sessions undef
+      Mojolicious::Static undef
+      Mojolicious::Types undef
+      Mojolicious::Validator undef
+      Mojolicious::Validator::Validation undef
+      Test::Mojo undef
+      ojo undef
+    requirements:
+      ExtUtils::MakeMaker 0
+      IO::Socket::IP 0.37
+      Sub::Util 1.41
+      perl 5.016
+  Moo-2.005005
+    pathname: H/HA/HAARG/Moo-2.005005.tar.gz
+    provides:
+      Method::Generate::Accessor undef
+      Method::Generate::BuildAll undef
+      Method::Generate::Constructor undef
+      Method::Generate::DemolishAll undef
+      Moo 2.005005
+      Moo::HandleMoose undef
+      Moo::HandleMoose::FakeConstructor undef
+      Moo::HandleMoose::FakeMetaClass undef
+      Moo::HandleMoose::_TypeMap undef
+      Moo::Object undef
+      Moo::Role 2.005005
+      Moo::_Utils undef
+      Moo::sification undef
+      oo undef
+    requirements:
+      Carp 0
+      Class::Method::Modifiers 1.10
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      Role::Tiny 2.002003
+      Scalar::Util 1.00
+      Sub::Defer 2.006006
+      Sub::Quote 2.006006
+      perl 5.006
+  Net-AMQP-RabbitMQ-2.40014
+    pathname: M/MS/MSTEMLE/Net-AMQP-RabbitMQ-2.40014.tar.gz
+    provides:
+      Net::AMQP::RabbitMQ 2.40014
+    requirements:
+      ExtUtils::MakeMaker 0
+      Math::Int64 0.34
+      Scalar::Util 0
+      XSLoader 0
+  Package-Stash-0.40
+    pathname: E/ET/ETHER/Package-Stash-0.40.tar.gz
+    provides:
+      Package::Stash 0.40
+      Package::Stash::PP 0.40
+    requirements:
+      B 0
+      Carp 0
+      Dist::CheckConflicts 0.02
+      ExtUtils::MakeMaker 0
+      Getopt::Long 0
+      Module::Implementation 0.06
+      Package::Stash::XS 0.26
+      Scalar::Util 0
+      Symbol 0
+      Text::ParseWords 0
+      constant 0
+      perl 5.008001
+      strict 0
+      warnings 0
+  Package-Stash-XS-0.30
+    pathname: E/ET/ETHER/Package-Stash-XS-0.30.tar.gz
+    provides:
+      Package::Stash::XS 0.30
+    requirements:
+      ExtUtils::MakeMaker 0
+      XSLoader 0
+      perl 5.008001
+      strict 0
+      warnings 0
+  Role-Tiny-2.002005
+    pathname: H/HA/HAARG/Role-Tiny-2.002005.tar.gz
+    provides:
+      Role::Tiny 2.002005
+      Role::Tiny::With 2.002005
+    requirements:
+      Exporter 0
+      perl 5.006
+  SQL-Abstract-2.000001
+    pathname: M/MS/MSTROUT/SQL-Abstract-2.000001.tar.gz
+    provides:
+      Chunkstrumenter undef
+      DBIx::Class::SQLMaker::Role::SQLA2Passthrough undef
+      SQL::Abstract 2.000001
+      SQL::Abstract::Formatter undef
+      SQL::Abstract::Parts undef
+      SQL::Abstract::Plugin::BangOverrides undef
+      SQL::Abstract::Plugin::ExtraClauses undef
+      SQL::Abstract::Reference undef
+      SQL::Abstract::Role::Plugin undef
+      SQL::Abstract::Test undef
+      SQL::Abstract::Tree undef
+    requirements:
+      Exporter 5.57
+      ExtUtils::MakeMaker 0
+      Hash::Merge 0.12
+      List::Util 0
+      MRO::Compat 0.12
+      Moo 2.000001
+      Scalar::Util 0
+      Sub::Quote 2.000001
+      Test::Builder::Module 0.84
+      Test::Deep 0.101
+      Text::Balanced 2.00
+      perl 5.006
+  SQL-Abstract-Pg-1.0
+    pathname: S/SR/SRI/SQL-Abstract-Pg-1.0.tar.gz
+    provides:
+      SQL::Abstract::Pg 1.0
+    requirements:
+      ExtUtils::MakeMaker 0
+      SQL::Abstract 2.0
+      perl 5.016
+  Sub-Exporter-Progressive-0.001013
+    pathname: F/FR/FREW/Sub-Exporter-Progressive-0.001013.tar.gz
+    provides:
+      Sub::Exporter::Progressive 0.001013
+    requirements:
+      ExtUtils::MakeMaker 0
+  Sub-Quote-2.006009
+    pathname: H/HA/HAARG/Sub-Quote-2.006009.tar.gz
+    provides:
+      Sub::Defer 2.006009
+      Sub::Quote 2.006009
+    requirements:
+      ExtUtils::MakeMaker 0
+      Scalar::Util 0
+      perl 5.006
+  Test-Deep-1.205
+    pathname: R/RJ/RJBS/Test-Deep-1.205.tar.gz
+    provides:
+      Test::Deep 1.205
+      Test::Deep::All 1.205
+      Test::Deep::Any 1.205
+      Test::Deep::Array 1.205
+      Test::Deep::ArrayEach 1.205
+      Test::Deep::ArrayElementsOnly 1.205
+      Test::Deep::ArrayLength 1.205
+      Test::Deep::ArrayLengthOnly 1.205
+      Test::Deep::Blessed 1.205
+      Test::Deep::Boolean 1.205
+      Test::Deep::Cache 1.205
+      Test::Deep::Cache::Simple 1.205
+      Test::Deep::Class 1.205
+      Test::Deep::Cmp 1.205
+      Test::Deep::Code 1.205
+      Test::Deep::Hash 1.205
+      Test::Deep::HashEach 1.205
+      Test::Deep::HashElements 1.205
+      Test::Deep::HashKeys 1.205
+      Test::Deep::HashKeysOnly 1.205
+      Test::Deep::Ignore 1.205
+      Test::Deep::Isa 1.205
+      Test::Deep::ListMethods 1.205
+      Test::Deep::MM 1.205
+      Test::Deep::Methods 1.205
+      Test::Deep::NoTest 1.205
+      Test::Deep::None 1.205
+      Test::Deep::Number 1.205
+      Test::Deep::Obj 1.205
+      Test::Deep::Ref 1.205
+      Test::Deep::RefType 1.205
+      Test::Deep::Regexp 1.205
+      Test::Deep::RegexpMatches 1.205
+      Test::Deep::RegexpOnly 1.205
+      Test::Deep::RegexpRef 1.205
+      Test::Deep::RegexpRefOnly 1.205
+      Test::Deep::RegexpVersion 1.205
+      Test::Deep::ScalarRef 1.205
+      Test::Deep::ScalarRefOnly 1.205
+      Test::Deep::Set 1.205
+      Test::Deep::Shallow 1.205
+      Test::Deep::Stack 1.205
+      Test::Deep::String 1.205
+      Test::Deep::SubHash 1.205
+      Test::Deep::SubHashElements 1.205
+      Test::Deep::SubHashKeys 1.205
+      Test::Deep::SubHashKeysOnly 1.205
+      Test::Deep::SuperHash 1.205
+      Test::Deep::SuperHashElements 1.205
+      Test::Deep::SuperHashKeys 1.205
+      Test::Deep::SuperHashKeysOnly 1.205
+    requirements:
+      ExtUtils::MakeMaker 6.78
+      List::Util 1.09
+      Scalar::Util 1.09
+      Test::Builder 0
+      Test::More 0.96
+      perl 5.012
+  TimeDate-2.35
+    pathname: A/AT/ATOOMIC/TimeDate-2.35.tar.gz
+    provides:
+      Date::Format 2.35
+      Date::Format::Generic 2.35
+      Date::Language 2.35
+      Date::Language::Afar 2.35
+      Date::Language::Amharic 2.35
+      Date::Language::Arabic 2.35
+      Date::Language::Austrian 2.35
+      Date::Language::Brazilian 2.35
+      Date::Language::Bulgarian 2.35
+      Date::Language::Chinese 2.35
+      Date::Language::Chinese_GB 2.35
+      Date::Language::Czech 2.35
+      Date::Language::Danish 2.35
+      Date::Language::Dutch 2.35
+      Date::Language::English 2.35
+      Date::Language::Finnish 2.35
+      Date::Language::French 2.35
+      Date::Language::Gedeo 2.35
+      Date::Language::German 2.35
+      Date::Language::Greek 2.35
+      Date::Language::Hungarian 2.35
+      Date::Language::Icelandic 2.35
+      Date::Language::Italian 2.35
+      Date::Language::Norwegian 2.35
+      Date::Language::Occitan 2.35
+      Date::Language::Oromo 2.35
+      Date::Language::Portuguese 2.35
+      Date::Language::Romanian 2.35
+      Date::Language::Russian 2.35
+      Date::Language::Russian_cp1251 2.35
+      Date::Language::Russian_koi8r 2.35
+      Date::Language::Sidama 2.35
+      Date::Language::Somali 2.35
+      Date::Language::Spanish 2.35
+      Date::Language::Swedish 2.35
+      Date::Language::Tigrinya 2.35
+      Date::Language::TigrinyaEritrean 2.35
+      Date::Language::TigrinyaEthiopian 2.35
+      Date::Language::Turkish 2.35
+      Date::Parse 2.35
+      Time::Zone 2.35
+      TimeDate 2.35
+    requirements:
+      Carp 0
+      ExtUtils::MakeMaker 0
+  Try-Tiny-0.32
+    pathname: E/ET/ETHER/Try-Tiny-0.32.tar.gz
+    provides:
+      Try::Tiny 0.32
+    requirements:
+      Carp 0
+      Exporter 5.57
+      ExtUtils::MakeMaker 0
+      constant 0
+      perl 5.006
+      strict 0
+      warnings 0
+  URI-5.35
+    pathname: O/OA/OALDERS/URI-5.35.tar.gz
+    provides:
+      URI 5.35
+      URI::Escape 5.35
+      URI::Heuristic 5.35
+      URI::IRI 5.35
+      URI::QueryParam 5.35
+      URI::Split 5.35
+      URI::URL 5.35
+      URI::WithBase 5.35
+      URI::data 5.35
+      URI::file 5.35
+      URI::file::Base 5.35
+      URI::file::FAT 5.35
+      URI::file::Mac 5.35
+      URI::file::OS2 5.35
+      URI::file::QNX 5.35
+      URI::file::Unix 5.35
+      URI::file::Win32 5.35
+      URI::ftp 5.35
+      URI::ftpes 5.35
+      URI::ftps 5.35
+      URI::geo 5.35
+      URI::gopher 5.35
+      URI::http 5.35
+      URI::https 5.35
+      URI::icap 5.35
+      URI::icaps 5.35
+      URI::irc 5.35
+      URI::ircs 5.35
+      URI::ldap 5.35
+      URI::ldapi 5.35
+      URI::ldaps 5.35
+      URI::mailto 5.35
+      URI::mms 5.35
+      URI::news 5.35
+      URI::nntp 5.35
+      URI::nntps 5.35
+      URI::otpauth 5.35
+      URI::pop 5.35
+      URI::rlogin 5.35
+      URI::rsync 5.35
+      URI::rtsp 5.35
+      URI::rtspu 5.35
+      URI::scp 5.35
+      URI::sftp 5.35
+      URI::sip 5.35
+      URI::sips 5.35
+      URI::smb 5.35
+      URI::smtp 5.35
+      URI::snews 5.35
+      URI::ssh 5.35
+      URI::telnet 5.35
+      URI::tn3270 5.35
+      URI::urn 5.35
+      URI::urn::isbn 5.35
+      URI::urn::oid 5.35
+      URI::ws 5.35
+      URI::wss 5.35
+    requirements:
+      Carp 0
+      Cwd 0
+      Data::Dumper 0
+      Encode 0
+      Exporter 5.57
+      ExtUtils::MakeMaker 0
+      MIME::Base32 0
+      MIME::Base64 2
+      Net::Domain 0
+      Scalar::Util 0
+      constant 0
+      integer 0
+      overload 0
+      parent 0
+      perl 5.008001
+      strict 0
+      utf8 0
+      warnings 0
+  Variable-Magic-0.64
+    pathname: V/VP/VPIT/Variable-Magic-0.64.tar.gz
+    provides:
+      Variable::Magic 0.64
+    requirements:
+      Carp 0
+      Config 0
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      IO::Handle 0
+      IO::Select 0
+      IPC::Open3 0
+      POSIX 0
+      Socket 0
+      Test::More 0
+      XSLoader 0
+      base 0
+      lib 0
+      perl 5.008
+  YAML-LibYAML-v0.908.0
+    pathname: T/TI/TINITA/YAML-LibYAML-v0.908.0.tar.gz
+    provides:
+      YAML::LibYAML v0.908.0
+      YAML::XS v0.908.0
+    requirements:
+      B::Deparse 0
+      Exporter 0
+      ExtUtils::MakeMaker 0
+      Scalar::Util 0
+      base 0
+      constant 0
+      perl 5.008001
+      strict 0
+      warnings 0
+  namespace-autoclean-0.31
+    pathname: E/ET/ETHER/namespace-autoclean-0.31.tar.gz
+    provides:
+      namespace::autoclean 0.31
+    requirements:
+      B 0
+      B::Hooks::EndOfScope 0.12
+      ExtUtils::MakeMaker 0
+      List::Util 0
+      namespace::clean 0.20
+      perl 5.006
+      strict 0
+      warnings 0
+  namespace-clean-0.27
+    pathname: R/RI/RIBASUSHI/namespace-clean-0.27.tar.gz
+    provides:
+      namespace::clean 0.27
+    requirements:
+      B::Hooks::EndOfScope 0.12
+      ExtUtils::MakeMaker 0
+      Package::Stash 0.23
+      perl 5.008001

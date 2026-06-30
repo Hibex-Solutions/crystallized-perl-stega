@@ -1,0 +1,80 @@
+% layout 'default', title => 'Perfil';
+% my $user    = stash('current_user') // {};
+% my $db_user = stash('db_user')      // {};
+
+% my %badge = (admin => 'danger', agent => 'warning', customer => 'primary');
+% my $role_badge = $badge{ $user->{role} // '' } // 'secondary';
+
+<h1 class="h3 mb-4">Perfil</h1>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card mb-3">
+      <div class="card-body">
+        % if ($user->{avatar_url}) {
+        <img src="<%= $user->{avatar_url} %>" width="80" height="80"
+             class="rounded-circle mb-3" alt="Avatar">
+        % }
+        <h5><%= $user->{display_name} %></h5>
+        <p class="text-muted mb-1"><%= $user->{email} %></p>
+        <span class="badge bg-<%= $role_badge %>"><%= $user->{role} // 'customer' %></span>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header">Atualizar Avatar</div>
+      <div class="card-body">
+        <form method="POST" action="/profile/avatar">
+          <div class="mb-3">
+            <label class="form-label">URL do Avatar</label>
+            <input type="url" name="avatar_url" class="form-control"
+                   value="<%= $user->{avatar_url} // '' %>">
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Atualizar</button>
+        </form>
+      </div>
+    </div>
+
+    <a href="/profile/password" class="btn btn-outline-secondary">
+      Alterar Senha no Keycloak →
+    </a>
+  </div>
+
+  % if (app->mode eq 'development') {
+  <div class="col-md-6">
+    <div class="card border-warning mb-3">
+      <div class="card-header text-bg-warning">
+        Debug — visível apenas em modo development
+      </div>
+      <div class="card-body">
+        <p class="small mb-2 text-muted">
+          Dados sincronizados do Keycloak na última autenticação.
+          Se o role estiver errado, verifique se a
+          <strong>Realm Role</strong> correta está atribuída ao usuário no Keycloak
+          (Aba <em>Role mappings</em> → seção <em>Assigned role</em>).
+        </p>
+        <table class="table table-sm table-bordered mb-0">
+          <tbody>
+            <tr><th>id (interno)</th><td class="font-monospace small"><%= $db_user->{id} %></td></tr>
+            <tr><th>keycloak_id</th><td class="font-monospace small"><%= $db_user->{keycloak_id} %></td></tr>
+            <tr><th>email</th><td><%= $db_user->{email} %></td></tr>
+            <tr><th>display_name</th><td><%= $db_user->{display_name} %></td></tr>
+            <tr>
+              <th>role</th>
+              <td>
+                <span class="badge bg-<%= $role_badge %>"><%= $db_user->{role} %></span>
+                % if (($db_user->{role} // '') eq 'customer') {
+                <span class="text-muted small ms-1">
+                  — se esperava outro role, atribua a Realm Role correta no Keycloak e faça logout/login
+                </span>
+                % }
+              </td>
+            </tr>
+            <tr><th>criado em</th><td><%= $db_user->{created_at} %></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  % }
+</div>

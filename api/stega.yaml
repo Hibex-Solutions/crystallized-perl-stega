@@ -1,0 +1,566 @@
+openapi: "3.0.3"
+
+info:
+  title: Stega API
+  description: |
+    API REST do sistema de tickets de suporte Stega.
+    Aplicação de demonstração do stack [Crystallized Perl](https://github.com/Hibex-Solutions/crystallized-perl).
+
+    ## Autenticação
+
+    Todas as rotas (exceto `/healthz` e `/api/v1/webhooks/*`) requerem um JWT Bearer válido.
+    Em desenvolvimento, configure `TEST_JWT_SECRET` para usar tokens HS256 sem Keycloak.
+
+    ```
+    Authorization: Bearer <token>
+    ```
+  version: "1.0.0"
+  contact:
+    name: Hibex Solutions
+    url: https://github.com/Hibex-Solutions/crystallized-perl-stega
+
+servers:
+  - url: http://localhost:3000
+    description: Desenvolvimento local
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Ticket:
+      type: object
+      properties:
+        id:          { type: integer }
+        product_id:  { type: integer }
+        author_id:   { type: string, format: uuid }
+        assignee_id: { type: string, format: uuid, nullable: true }
+        title:       { type: string }
+        body:        { type: string }
+        status:
+          type: string
+          enum: [open, in_progress, waiting, resolved, closed]
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        custom_fields:
+          type: object
+          additionalProperties: true
+          nullable: true
+        created_at:  { type: string, format: date-time }
+        updated_at:  { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, nullable: true }
+
+    Comment:
+      type: object
+      properties:
+        id:          { type: integer }
+        ticket_id:   { type: integer }
+        author_id:   { type: string, format: uuid }
+        body:        { type: string }
+        is_internal: { type: boolean }
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        created_at:  { type: string, format: date-time }
+        updated_at:  { type: string, format: date-time }
+
+    Product:
+      type: object
+      properties:
+        id:          { type: integer }
+        name:        { type: string }
+        slug:        { type: string }
+        description: { type: string, nullable: true }
+        settings:
+          type: object
+          additionalProperties: true
+          nullable: true
+        is_active:   { type: boolean }
+        created_at:  { type: string, format: date-time }
+
+    User:
+      type: object
+      properties:
+        id:           { type: string, format: uuid }
+        email:        { type: string, format: email }
+        display_name: { type: string }
+        avatar_url:   { type: string, format: uri, nullable: true }
+        role:
+          type: string
+          enum: [customer, agent, admin]
+        created_at:   { type: string, format: date-time }
+
+    Event:
+      type: object
+      properties:
+        id:         { type: integer }
+        ticket_id:  { type: integer }
+        actor_id:   { type: string, format: uuid, nullable: true }
+        actor_name: { type: string, nullable: true }
+        type:       { type: string }
+        payload:
+          type: object
+          additionalProperties: true
+        created_at: { type: string, format: date-time }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Token de autenticação ausente ou inválido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Sem permissão para esta ação
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+security:
+  - bearerAuth: []
+
+paths:
+
+  /healthz:
+    get:
+      summary: Health check
+      description: Verifica o estado da aplicação e do banco de dados. Não requer autenticação.
+      security: []
+      tags: [Infra]
+      responses:
+        "200":
+          description: Aplicação saudável
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok] }
+        "503":
+          description: Aplicação degradada (banco indisponível)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [degraded] }
+                  detail: { type: string }
+
+  /api/v1/tickets:
+    get:
+      summary: Lista tickets
+      tags: [Tickets]
+      parameters:
+        - name: q
+          in: query
+          description: Busca full-text (título e corpo)
+          schema: { type: string }
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, waiting, resolved, closed]
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        "200":
+          description: Lista de tickets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Ticket' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      summary: Abre novo ticket
+      tags: [Tickets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body, product_id]
+              properties:
+                title:         { type: string }
+                body:          { type: string }
+                product_id:    { type: integer }
+                priority:
+                  type: string
+                  enum: [low, medium, high, critical]
+                  default: medium
+                custom_fields:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Ticket criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Ticket' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "422":
+          description: Dados inválidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/v1/tickets/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+
+    get:
+      summary: Detalhe do ticket
+      tags: [Tickets]
+      responses:
+        "200":
+          description: Ticket encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Ticket' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    patch:
+      summary: Atualiza ticket
+      description: Atualiza status, prioridade ou responsável. Requer papel agent ou admin.
+      tags: [Tickets]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [open, in_progress, waiting, resolved, closed]
+                priority:
+                  type: string
+                  enum: [low, medium, high, critical]
+                assignee_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Ticket atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Ticket' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+    delete:
+      summary: Arquiva ticket
+      description: Define status como 'closed'. Requer papel admin.
+      tags: [Tickets]
+      responses:
+        "200":
+          description: Ticket arquivado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      archived: { type: integer, enum: [1] }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/tickets/{id}/comments:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer }
+
+    get:
+      summary: Lista comentários do ticket
+      description: Customers não vêem comentários internos (is_internal=true).
+      tags: [Comentários]
+      responses:
+        "200":
+          description: Lista de comentários
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Comment' }
+
+    post:
+      summary: Adiciona comentário ao ticket
+      tags: [Comentários]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body:        { type: string }
+                is_internal:
+                  type: boolean
+                  default: false
+                  description: Visível apenas para agents/admins. Ignorado se o autor for customer.
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Comentário criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Comment' }
+
+  /api/v1/tickets/{ticket_id}/comments/{id}:
+    patch:
+      summary: Edita comentário
+      tags: [Comentários]
+      parameters:
+        - name: ticket_id
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: { type: string }
+      responses:
+        "200":
+          description: Comentário atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Comment' }
+
+  /api/v1/tickets/{id}/events:
+    get:
+      summary: Log de auditoria do ticket
+      tags: [Tickets]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Eventos do ticket
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Event' }
+
+  /api/v1/products:
+    get:
+      summary: Lista produtos ativos
+      tags: [Produtos]
+      responses:
+        "200":
+          description: Lista de produtos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Product' }
+
+    post:
+      summary: Cria produto
+      description: Requer papel admin.
+      tags: [Produtos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name:        { type: string }
+                slug:        { type: string }
+                description: { type: string }
+                settings:    { type: object, additionalProperties: true }
+      responses:
+        "201":
+          description: Produto criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Product' }
+
+  /api/v1/products/{id}:
+    patch:
+      summary: Atualiza produto
+      description: Requer papel admin.
+      tags: [Produtos]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:        { type: string }
+                description: { type: string }
+                is_active:   { type: boolean }
+                settings:    { type: object, additionalProperties: true }
+      responses:
+        "200":
+          description: Produto atualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Product' }
+
+  /api/v1/users:
+    get:
+      summary: Lista usuários
+      description: Requer papel agent ou admin.
+      tags: [Usuários]
+      responses:
+        "200":
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+
+  /api/v1/users/{id}:
+    get:
+      summary: Perfil do usuário
+      tags: [Usuários]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Dados do usuário
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/webhooks/github:
+    post:
+      summary: Recebe eventos do GitHub Issues
+      description: |
+        Recebe webhooks do GitHub. Issue aberta → ticket criado. Issue fechada → ticket resolvido.
+        O produto é mapeado via `products.settings.github_repo`.
+        Responde 202 imediatamente e processa de forma assíncrona via Minion.
+      tags: [Webhooks]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "202":
+          description: Payload aceito para processamento assíncrono
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: integer, enum: [1] }
+
+  /api/v1/webhooks/generic:
+    post:
+      summary: Receptor de webhook genérico
+      description: |
+        Aceita qualquer payload JSON. Cria um ticket com o payload como `custom_fields`.
+        Útil para sistemas legados. Processa de forma assíncrona via Minion.
+      tags: [Webhooks]
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "202":
+          description: Payload aceito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted: { type: integer, enum: [1] }

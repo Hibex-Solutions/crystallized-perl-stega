@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Testes — Perl ${{ matrix.perl }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        perl:
+          - "5.42"
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_dev
+          POSTGRES_DB: stega
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRESQL_URL: postgresql://postgres:postgres_dev@localhost:5432/stega
+      POSTGRESQL_MIGRATION_URL: postgresql://postgres:postgres_dev@localhost:5432/stega
+      TEST_JWT_SECRET: test_secret_apenas_para_desenvolvimento
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar dependências de sistema
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            libpq-dev \
+            librabbitmq-dev \
+            libssl-dev
+
+      - name: Configurar Perl ${{ matrix.perl }}
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl }}
+
+      - name: Versões instaladas
+        run: |
+          perl -v
+          cpanm --version
+
+      - name: Instalar Carton
+        run: cpanm --notest --quiet Carton
+
+      - name: Cache das dependências Perl
+        uses: actions/cache@v4
+        with:
+          path: local/
+          key: perl-${{ matrix.perl }}-${{ hashFiles('cpanfile.snapshot') }}-${{ hashFiles('cpanfile') }}
+          restore-keys: |
+            perl-${{ matrix.perl }}-${{ hashFiles('cpanfile.snapshot') }}-
+            perl-${{ matrix.perl }}-
+
+      - name: Instalar dependências do projeto
+        run: carton install --deployment
+
+      - name: Aplicar migrations
+        run: carton exec perl eng/migrate.pl
+
+      - name: Executar testes
+        run: carton exec prove -lr --timer t/
+
+      - name: Gerar relatório de cobertura
+        if: matrix.perl == '5.42'
+        run: carton exec cover -test -report text 2>&1 | tail -20
+        continue-on-error: true

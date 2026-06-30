@@ -1,0 +1,37 @@
+% layout 'default', title => 'Início';
+% my $user = stash('current_user') // {};
+% my $role = $user->{role} // 'customer';
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">
+    % if ($role eq 'customer') {
+    Meus Tickets
+    % } else {
+    Fila de Tickets
+    % }
+  </h1>
+  <a href="/tickets/new" class="btn btn-primary">+ Abrir Ticket</a>
+</div>
+
+% if (!@{$tickets // []}) {
+<div class="alert alert-info">
+  Nenhum ticket ativo no momento.
+  <a href="/tickets/new">Abra um ticket</a> para começar.
+</div>
+% } else {
+<div class="list-group">
+  % for my $t (@{$tickets}) {
+  <a href="/tickets/<%= $t->{id} %>" class="list-group-item list-group-item-action priority-<%= $t->{priority} %>">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <strong><%= $t->{title} %></strong>
+        <small class="text-muted d-block"><%= $t->{product_name} %></small>
+      </div>
+      <span class="badge badge-<%= $t->{status} %> text-white">
+        <%= $t->{status} %>
+      </span>
+    </div>
+  </a>
+  % }
+</div>
+% }

@@ -1,0 +1,39 @@
+# Perl — artefatos de build
+blib/
+*.bak
+*.old
+*.orig
+*.rej
+pm_to_blib
+Makefile
+Makefile.old
+MYMETA.json
+MYMETA.yml
+META.yml
+META.json
+
+# Carton — dependências instaladas localmente (nunca commitar)
+local/
+
+# Cobertura de código
+cover_db/
+
+# Variáveis de ambiente locais (nunca commitar credenciais)
+.env
+.env.local
+.env.*.local
+
+# Hipnotoad — PID file
+hypnotoad.pid
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo

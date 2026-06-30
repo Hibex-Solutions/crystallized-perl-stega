@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Hexagon background -->
+  <polygon points="24,2 43,13 43,35 24,46 5,35 5,13" fill="#0F172A"/>
+  <!-- Hexagon border -->
+  <polygon points="24,2 43,13 43,35 24,46 5,35 5,13" fill="none" stroke="#06B6D4" stroke-width="2.5"/>
+  <!-- Bold S -->
+  <text x="24" y="34.5"
+        font-family="system-ui,-apple-system,Arial,sans-serif"
+        font-size="26" font-weight="700"
+        text-anchor="middle"
+        fill="#06B6D4">S</text>
+  <!-- Orange accent — top-right edge -->
+  <circle cx="36" cy="9" r="3.5" fill="#F97316"/>
+</svg>
