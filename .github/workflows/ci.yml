@@ -82,5 +82,7 @@ jobs:
 
       - name: Gerar relatório de cobertura
         if: matrix.perl == '5.42'
-        run: carton exec cover -test -report text 2>&1 | tail -20
+        run: |
+          HARNESS_PERL_SWITCHES='-MDevel::Cover=-ignore,local/' carton exec prove -lr t/
+          carton exec cover -report text 2>&1 | tail -20
         continue-on-error: true
