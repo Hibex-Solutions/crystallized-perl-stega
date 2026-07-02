@@ -8,8 +8,9 @@ info:
 
     ## Autenticação
 
-    Todas as rotas (exceto `/healthz` e `/api/v1/webhooks/*`) requerem um JWT Bearer válido.
+    Todas as rotas (exceto `/api/v1/webhooks/*`) requerem um JWT Bearer válido.
     Em desenvolvimento, configure `TEST_JWT_SECRET` para usar tokens HS256 sem Keycloak.
+    O health check está disponível em `GET /healthz` (fora da API).
 
     ```
     Authorization: Bearer <token>
@@ -20,7 +21,7 @@ info:
     url: https://github.com/Hibex-Solutions/crystallized-perl-stega
 
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:3000/api
     description: Desenvolvimento local
 
 components:
@@ -136,34 +137,16 @@ security:
 
 paths:
 
-  /healthz:
+  /v1/tickets:
     get:
-      summary: Health check
-      description: Verifica o estado da aplicação e do banco de dados. Não requer autenticação.
-      security: []
-      tags: [Infra]
-      responses:
-        "200":
-          description: Aplicação saudável
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, enum: [ok] }
-        "503":
-          description: Aplicação degradada (banco indisponível)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, enum: [degraded] }
-                  detail: { type: string }
-
-  /api/v1/tickets:
-    get:
+      operationId: listTickets
+      x-mojo-to: "ticket#api_list"
       summary: Lista tickets
+      description: |
+        Retorna tickets conforme visibilidade do papel do usuário autenticado:
+        - **admin**: todos os tickets
+        - **agent**: tickets sem responsável, atribuídos ao agente ou em que o agente já foi responsável
+        - **customer**: apenas os próprios tickets (author_id)
       tags: [Tickets]
       parameters:
         - name: q
@@ -195,6 +178,8 @@ paths:
         "401": { $ref: '#/components/responses/Unauthorized' }
 
     post:
+      operationId: createTicket
+      x-mojo-to: "ticket#api_create"
       summary: Abre novo ticket
       tags: [Tickets]
       requestBody:
@@ -231,7 +216,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
-  /api/v1/tickets/{id}:
+  /v1/tickets/{id}:
     parameters:
       - name: id
         in: path
@@ -239,6 +224,8 @@ paths:
         schema: { type: integer }
 
     get:
+      operationId: getTicket
+      x-mojo-to: "ticket#api_show"
       summary: Detalhe do ticket
       tags: [Tickets]
       responses:
@@ -254,8 +241,17 @@ paths:
         "404": { $ref: '#/components/responses/NotFound' }
 
     patch:
+      operationId: updateTicket
+      x-mojo-to: "ticket#api_update"
       summary: Atualiza ticket
-      description: Atualiza status, prioridade ou responsável. Requer papel agent ou admin.
+      description: |
+        Atualiza status, prioridade ou responsável de um ticket.
+
+        **Regras de permissão:**
+        - `status`: somente admin ou o agente que é o responsável atual (`assignee_id`) podem alterar.
+          Tickets sem responsável só têm status alterável por admin.
+        - `assignee_id`: somente agent ou admin. Agents não podem desatribuir (enviar null).
+          O responsável deve ter papel `agent`. Admins podem desatribuir enviando `null`.
       tags: [Tickets]
       requestBody:
         content:
@@ -272,6 +268,7 @@ paths:
                 assignee_id:
                   type: string
                   format: uuid
+                  nullable: true
       responses:
         "200":
           description: Ticket atualizado
@@ -282,9 +279,12 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Ticket' }
         "401": { $ref: '#/components/responses/Unauthorized' }
+        "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
     delete:
+      operationId: deleteTicket
+      x-mojo-to: "ticket#api_delete"
       summary: Arquiva ticket
       description: Define status como 'closed'. Requer papel admin.
       tags: [Tickets]
@@ -304,7 +304,7 @@ paths:
         "403": { $ref: '#/components/responses/Forbidden' }
         "404": { $ref: '#/components/responses/NotFound' }
 
-  /api/v1/tickets/{id}/comments:
+  /v1/tickets/{id}/comments:
     parameters:
       - name: id
         in: path
@@ -312,6 +312,8 @@ paths:
         schema: { type: integer }
 
     get:
+      operationId: listTicketComments
+      x-mojo-to: "comment#api_list"
       summary: Lista comentários do ticket
       description: Customers não vêem comentários internos (is_internal=true).
       tags: [Comentários]
@@ -328,6 +330,8 @@ paths:
                     items: { $ref: '#/components/schemas/Comment' }
 
     post:
+      operationId: createComment
+      x-mojo-to: "comment#api_create"
       summary: Adiciona comentário ao ticket
       tags: [Comentários]
       requestBody:
@@ -356,8 +360,10 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Comment' }
 
-  /api/v1/tickets/{ticket_id}/comments/{id}:
+  /v1/tickets/{ticket_id}/comments/{id}:
     patch:
+      operationId: updateComment
+      x-mojo-to: "comment#api_update"
       summary: Edita comentário
       tags: [Comentários]
       parameters:
@@ -386,8 +392,10 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Comment' }
 
-  /api/v1/tickets/{id}/events:
+  /v1/tickets/{id}/events:
     get:
+      operationId: listTicketEvents
+      x-mojo-to: "ticket#api_events"
       summary: Log de auditoria do ticket
       tags: [Tickets]
       parameters:
@@ -407,8 +415,10 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/Event' }
 
-  /api/v1/products:
+  /v1/products:
     get:
+      operationId: listProducts
+      x-mojo-to: "product#api_list"
       summary: Lista produtos ativos
       tags: [Produtos]
       responses:
@@ -424,6 +434,8 @@ paths:
                     items: { $ref: '#/components/schemas/Product' }
 
     post:
+      operationId: createProduct
+      x-mojo-to: "product#api_create"
       summary: Cria produto
       description: Requer papel admin.
       tags: [Produtos]
@@ -449,8 +461,10 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Product' }
 
-  /api/v1/products/{id}:
+  /v1/products/{id}:
     patch:
+      operationId: updateProduct
+      x-mojo-to: "product#api_update"
       summary: Atualiza produto
       description: Requer papel admin.
       tags: [Produtos]
@@ -479,8 +493,10 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Product' }
 
-  /api/v1/users:
+  /v1/users:
     get:
+      operationId: listUsers
+      x-mojo-to: "user#api_list"
       summary: Lista usuários
       description: Requer papel agent ou admin.
       tags: [Usuários]
@@ -496,8 +512,10 @@ paths:
                     type: array
                     items: { $ref: '#/components/schemas/User' }
 
-  /api/v1/users/{id}:
+  /v1/users/{id}:
     get:
+      operationId: getUser
+      x-mojo-to: "user#api_show"
       summary: Perfil do usuário
       tags: [Usuários]
       parameters:
@@ -516,8 +534,10 @@ paths:
                   data: { $ref: '#/components/schemas/User' }
         "404": { $ref: '#/components/responses/NotFound' }
 
-  /api/v1/webhooks/github:
+  /v1/webhooks/github:
     post:
+      operationId: receiveGithubWebhook
+      x-mojo-to: "webhook#github"
       summary: Recebe eventos do GitHub Issues
       description: |
         Recebe webhooks do GitHub. Issue aberta → ticket criado. Issue fechada → ticket resolvido.
@@ -541,8 +561,10 @@ paths:
                 properties:
                   accepted: { type: integer, enum: [1] }
 
-  /api/v1/webhooks/generic:
+  /v1/webhooks/generic:
     post:
+      operationId: receiveGenericWebhook
+      x-mojo-to: "webhook#generic"
       summary: Receptor de webhook genérico
       description: |
         Aceita qualquer payload JSON. Cria um ticket com o payload como `custom_fields`.

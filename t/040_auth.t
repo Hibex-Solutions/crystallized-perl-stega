@@ -12,7 +12,7 @@ my $t = Test::Mojo->new('Stega');
 subtest 'Sem token — API retorna 401' => sub {
     $t->get_ok('/api/v1/tickets')
       ->status_is(401)
-      ->json_has('/error');
+      ->json_has('/errors');
 };
 
 subtest 'Token inválido — retorna 401' => sub {

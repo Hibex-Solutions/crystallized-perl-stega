@@ -36,7 +36,7 @@ services:
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.6
-    command: start-dev
+    command: start-dev --import-realm
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,8 +45,10 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: postgres_dev
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import
     ports:
       - "8080:8080"
 
@@ -147,6 +149,7 @@ services:
       POSTGRESQL_URL: postgresql://postgres:postgres_dev@postgres:5432/stega
       POSTGRESQL_MIGRATION_URL: postgresql://postgres:postgres_dev@postgres:5432/stega
       TEST_JWT_SECRET: test_secret_apenas_para_desenvolvimento
+      PERL5OPT: "-Mopen=:std,:encoding(UTF-8)"
     command: prove -lr --timer t/
     restart: "no"
 

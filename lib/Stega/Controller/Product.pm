@@ -68,6 +68,7 @@ sub update {
 
 sub api_list {
     my $c = shift;
+    $c->openapi->valid_input or return;
     my $products = $c->pg->db->query(
         'SELECT * FROM products WHERE is_active = true ORDER BY name'
     )->hashes;
@@ -76,6 +77,7 @@ sub api_list {
 
 sub api_create {
     my $c    = shift;
+    $c->openapi->valid_input or return;
     my $json = $c->req->json // {};
     my $role = ($c->stash('current_user') // {})->{role} // '';
 
@@ -99,6 +101,7 @@ sub api_create {
 
 sub api_update {
     my $c    = shift;
+    $c->openapi->valid_input or return;
     my $role = ($c->stash('current_user') // {})->{role} // '';
     return $c->render(json => { error => 'Apenas admins' }, status => 403)
         unless $role eq 'admin';

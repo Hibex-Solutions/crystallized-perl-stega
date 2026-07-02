@@ -103,6 +103,7 @@ Edite o `.env` conforme seu ambiente. As variáveis obrigatórias são:
 | `KEYCLOAK_FRONTEND_URL` | URL do Keycloak visível pelo browser (redirects de login). Se omitida, usa `KEYCLOAK_URL` | *(omitida em dev local)* |
 | `KEYCLOAK_REALM` | Realm do Keycloak | `stega` |
 | `KEYCLOAK_CLIENT_ID` | Client ID OIDC | `stega-web` |
+| `GITHUB_WEBHOOK_SECRET` | Segredo HMAC-SHA256 para verificar webhooks do GitHub. Se omitida, a verificação é desabilitada | *(omitida em dev local)* |
 | `TEST_JWT_SECRET` | Segredo para tokens HS256 de teste | `test_secret_apenas_para_desenvolvimento` |
 
 ---

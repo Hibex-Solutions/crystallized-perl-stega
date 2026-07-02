@@ -1,5 +1,6 @@
 use strict;
 use warnings;
+use utf8;
 use Test::More;
 use Test::Mojo;
 use lib 't/lib';
@@ -21,15 +22,16 @@ $admin_token    = make_jwt(role => 'admin',    sub => 'adm-001', email => 'admin
 
 sub set_auth { my $token = shift; $t->ua->once(start => sub { $_[1]->req->headers->authorization("Bearer $token") }) }
 
-# Garante que há pelo menos um produto para os testes
 my $db = $t->app->pg->db;
+
+# Garante que há pelo menos um produto para os testes
 my $product = $db->query(
     "INSERT INTO products (name, slug) VALUES ('Produto Teste', 'produto-teste')
      ON CONFLICT (slug) DO UPDATE SET name = 'Produto Teste' RETURNING id"
 )->hash;
 my $product_id = $product->{id};
 
-subtest 'GET /api/v1/tickets — lista vazia com auth' => sub {
+subtest 'GET /api/v1/tickets — lista com auth' => sub {
     set_auth($customer_token);
     $t->get_ok('/api/v1/tickets')
       ->status_is(200)
@@ -59,7 +61,25 @@ subtest 'POST /api/v1/tickets — cria ticket' => sub {
           ->json_is('/data/title', 'Erro de teste');
     };
 
-    subtest 'PATCH /api/v1/tickets/:id — atualiza status' => sub {
+    subtest 'PATCH /api/v1/tickets/:id — agent sem atribuição não pode alterar status' => sub {
+        set_auth($agent_token);
+        $t->patch_ok("/api/v1/tickets/$ticket_id" => json => {
+            status => 'in_progress',
+        })->status_is(403);
+    };
+
+    subtest 'PATCH /api/v1/tickets/:id — admin atribui ticket ao agent' => sub {
+        my $agent_user = $db->query("SELECT id FROM users WHERE keycloak_id = 'agt-001'")->hash;
+        ok $agent_user, 'agent registrado no banco após request anterior';
+
+        set_auth($admin_token);
+        $t->patch_ok("/api/v1/tickets/$ticket_id" => json => {
+            assignee_id => $agent_user->{id},
+        })->status_is(200)
+          ->json_is('/data/assignee_id', $agent_user->{id});
+    };
+
+    subtest 'PATCH /api/v1/tickets/:id — agent responsável atualiza status' => sub {
         set_auth($agent_token);
         $t->patch_ok("/api/v1/tickets/$ticket_id" => json => {
             status => 'in_progress',

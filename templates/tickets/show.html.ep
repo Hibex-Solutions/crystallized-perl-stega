@@ -1,7 +1,8 @@
 % layout 'default', title => "#$ticket->{id} — $ticket->{title}";
 % my $user = stash('current_user') // {};
 % my $role = $user->{role} // 'customer';
-% my $can_manage = $role eq 'agent' || $role eq 'admin';
+% my $can_assign        = $role eq 'admin' || $role eq 'agent';
+% my $can_change_status = $role eq 'admin' || ($role eq 'agent' && ($ticket->{assignee_id} // '') eq ($user->{id} // ''));
 
 <nav aria-label="breadcrumb" class="mb-3">
   <ol class="breadcrumb">
@@ -53,7 +54,7 @@
             <textarea name="body" class="form-control" rows="3"
                       placeholder="Seu comentário..." required></textarea>
           </div>
-          % if ($can_manage) {
+          % if ($can_assign) {
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" name="is_internal" value="1" id="internal">
             <label class="form-check-label" for="internal">Comentário interno (visível apenas para agentes)</label>
@@ -82,11 +83,56 @@
           <dd><%= $ticket->{resolved_at} %></dd>
           % }
         </dl>
+
+        % if ($ticket->{status} ne 'closed') {
+        %   if ($role eq 'admin') {
+        <hr>
+        <form method="POST" action="/tickets/<%= $ticket->{id} %>/assign">
+          <label class="form-label small fw-bold">Atribuir responsável</label>
+          <select name="assignee_id" class="form-select form-select-sm mb-2">
+            <option value="">— Sem responsável —</option>
+            % for my $a (@{$agents // []}) {
+            <option value="<%= $a->{id} %>"
+              <%= ($ticket->{assignee_id} // '') eq $a->{id} ? 'selected' : '' %>>
+              <%= $a->{display_name} %>
+            </option>
+            % }
+          </select>
+          <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Atribuir</button>
+        </form>
+        %   } elsif ($role eq 'agent') {
+        %     my $assigned_to_me = ($ticket->{assignee_id} // '') eq ($user->{id} // '');
+        %     if (!$ticket->{assignee_id}) {
+        <hr>
+        <form method="POST" action="/tickets/<%= $ticket->{id} %>/assign">
+          <input type="hidden" name="assignee_id" value="<%= $user->{id} %>">
+          <button type="submit" class="btn btn-sm btn-outline-primary w-100">Atribuir a mim</button>
+        </form>
+        %     } elsif ($assigned_to_me) {
+        <hr>
+        %       if (@{$agents // []}) {
+        <form method="POST" action="/tickets/<%= $ticket->{id} %>/assign">
+          <label class="form-label small fw-bold">Transferir para</label>
+          <select name="assignee_id" class="form-select form-select-sm mb-2">
+            % for my $a (@{$agents // []}) {
+            <option value="<%= $a->{id} %>"><%= $a->{display_name} %></option>
+            % }
+          </select>
+          <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Transferir</button>
+        </form>
+        %       } else {
+        <div class="alert alert-info py-2 mb-0 small">
+          Não há outro agente disponível para transferência.
+        </div>
+        %       }
+        %     }
+        %   }
+        % }
       </div>
     </div>
 
-    % if ($can_manage && $ticket->{status} ne 'closed') {
-    <div class="card">
+    % if ($can_change_status && $ticket->{status} ne 'closed') {
+    <div class="card mb-3">
       <div class="card-header">Ações</div>
       <div class="card-body">
         <form method="POST" action="/tickets/<%= $ticket->{id} %>/status">
@@ -99,6 +145,33 @@
           </div>
           <button type="submit" class="btn btn-sm btn-outline-primary w-100">Atualizar Status</button>
         </form>
+      </div>
+    </div>
+    % }
+
+    % if (@{$events // []}) {
+    <div class="card">
+      <div class="card-header">Histórico</div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush">
+          % for my $ev (@{$events // []}) {
+          <li class="list-group-item py-2 px-3">
+            <small class="text-muted d-block"><%= $ev->{created_at} %></small>
+            % if ($ev->{type} eq 'ticket.created') {
+            <span>Ticket criado por <strong><%= $ev->{actor_name} // '?' %></strong></span>
+            % } elsif ($ev->{type} eq 'status.changed') {
+            <span>Status: <em><%= $ev->{payload}{old_status} // '?' %></em> →
+              <strong><%= $ev->{payload}{new_status} // '?' %></strong>
+              por <%= $ev->{actor_name} // '?' %></span>
+            % } elsif ($ev->{type} eq 'assigned') {
+            % my $to = $ev->{payload}{assigned_to_name} // $ev->{payload}{assigned_to} // '—';
+            <span>Responsável: <strong><%= $to %></strong> por <%= $ev->{actor_name} // '?' %></span>
+            % } else {
+            <span><em><%= $ev->{type} %></em> por <%= $ev->{actor_name} // '?' %></span>
+            % }
+          </li>
+          % }
+        </ul>
       </div>
     </div>
     % }

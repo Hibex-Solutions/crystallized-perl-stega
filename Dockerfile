@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN cpanm --notest Carton
 
 COPY cpanfile cpanfile.snapshot ./
-RUN carton install --deployment
+RUN carton install
 
 # Stage 2: imagem para execução dos testes (inclui t/ e ferramentas de build)
 FROM deps AS test

@@ -501,6 +501,29 @@ DISTRIBUTIONS
       ExtUtils::MakeMaker 0
       Scalar::Util 1.08
       Test::More 0.88
+  JSON-Validator-5.15
+    pathname: J/JH/JHTHORSEN/JSON-Validator-5.15.tar.gz
+    provides:
+      JSON::Validator 5.15
+      JSON::Validator::Error undef
+      JSON::Validator::Formats undef
+      JSON::Validator::Joi undef
+      JSON::Validator::Schema undef
+      JSON::Validator::Schema::Draft201909 undef
+      JSON::Validator::Schema::Draft4 undef
+      JSON::Validator::Schema::Draft6 undef
+      JSON::Validator::Schema::Draft7 undef
+      JSON::Validator::Schema::OpenAPIv2 undef
+      JSON::Validator::Schema::OpenAPIv3 undef
+      JSON::Validator::Store undef
+      JSON::Validator::URI undef
+      JSON::Validator::Util undef
+    requirements:
+      ExtUtils::MakeMaker 0
+      List::Util 1.45
+      Mojolicious 7.28
+      YAML::XS 0.67
+      perl 5.016
   LWP-MediaTypes-6.04
     pathname: O/OA/OALDERS/LWP-MediaTypes-6.04.tar.gz
     provides:
@@ -732,6 +755,19 @@ DISTRIBUTIONS
       ExtUtils::MakeMaker 0
       IO::Socket::IP 0.37
       Sub::Util 1.41
+      perl 5.016
+  Mojolicious-Plugin-OpenAPI-5.11
+    pathname: J/JH/JHTHORSEN/Mojolicious-Plugin-OpenAPI-5.11.tar.gz
+    provides:
+      Mojolicious::Plugin::OpenAPI 5.11
+      Mojolicious::Plugin::OpenAPI::Cors undef
+      Mojolicious::Plugin::OpenAPI::Parameters undef
+      Mojolicious::Plugin::OpenAPI::Security undef
+      Mojolicious::Plugin::OpenAPI::SpecRenderer undef
+    requirements:
+      ExtUtils::MakeMaker 0
+      JSON::Validator 5.13
+      Mojolicious 9.00
       perl 5.016
   Moo-2.005005
     pathname: H/HA/HAARG/Moo-2.005005.tar.gz

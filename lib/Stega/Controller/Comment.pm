@@ -32,6 +32,7 @@ sub web_create {
 
 sub api_list {
     my $c         = shift;
+    $c->openapi->valid_input or return;
     my $ticket_id = $c->param('id');
     my $role      = ($c->stash('current_user') // {})->{role} // 'customer';
 
@@ -45,6 +46,7 @@ sub api_list {
 
 sub api_create {
     my $c         = shift;
+    $c->openapi->valid_input or return;
     my $ticket_id = $c->param('id');
     my $json      = $c->req->json // {};
     my $user      = $c->stash('current_user');
@@ -74,6 +76,7 @@ sub api_create {
 
 sub api_update {
     my $c         = shift;
+    $c->openapi->valid_input or return;
     my $ticket_id = $c->param('ticket_id');
     my $id        = $c->param('id');
     my $json      = $c->req->json // {};

@@ -1,7 +1,13 @@
 requires 'perl', '5.042';
 
 # Framework web
-requires 'Mojolicious', '9.0';
+requires 'Mojolicious',                  '9.0';
+# Plugin 5.12+ requer JSON::Validator >= 5.17, que introduziu Net::IDN::Encode — módulo XS
+# incompatível com Perl 5.42 (usa uvuni_to_utf8_flags, removida nessa versão).
+# 5.11 requer apenas JSON::Validator >= 5.13, evitando toda a cadeia problemática.
+# Monitorar: https://metacpan.org/dist/Net-IDN-Encoding
+requires 'Mojolicious::Plugin::OpenAPI', '>= 5.11, < 5.12';
+requires 'JSON::Validator',              '>= 5.13, < 5.16';
 
 # Banco de dados
 requires 'Mojo::Pg', '4.0';

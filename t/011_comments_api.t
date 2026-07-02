@@ -1,5 +1,6 @@
 use strict;
 use warnings;
+use utf8;
 use Test::More;
 use Test::Mojo;
 use lib 't/lib';
@@ -22,8 +23,9 @@ sub set_auth { my $token = shift; $t->ua->once(start => sub { $_[1]->req->header
 my $db = $t->app->pg->db;
 
 my $product = $db->query(
-    "INSERT INTO products (name, slug) VALUES ('Produto Comentários', 'produto-comentarios')
-     ON CONFLICT (slug) DO UPDATE SET name = 'Produto Comentários' RETURNING id"
+    q{INSERT INTO products (name, slug) VALUES ($1, $2)
+      ON CONFLICT (slug) DO UPDATE SET name = $1 RETURNING id},
+    'Produto Comentários', 'produto-comentarios'
 )->hash;
 
 my $agent_user = $db->query(

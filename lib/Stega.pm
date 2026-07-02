@@ -4,6 +4,8 @@ use Mojo::Base 'Mojolicious', -strict;
 use Mojo::Pg;
 use Crypt::JWT qw(decode_jwt);
 
+my $jwks_cache;    # cache por processo — cada worker Hypnotoad carrega uma vez
+
 use Stega::Job::SendWelcomeNotification;
 use Stega::Job::CheckSlaBreaches;
 use Stega::Job::ProcessWebhookPayload;
@@ -17,6 +19,7 @@ sub startup {
     $self->_setup_database;
     $self->_setup_minion;
     $self->_setup_helpers;
+    $self->_setup_openapi;
     $self->_setup_routes;
 }
 
@@ -27,6 +30,7 @@ sub _setup_database {
         // 'postgresql://postgres:postgres_dev@localhost:5432/stega';
 
     my $pg = Mojo::Pg->new($dsn);
+    $pg->options->{pg_enable_utf8} = -1;    # auto: usa encoding do servidor (UTF-8)
     $self->helper(pg => sub { $pg });
 }
 
@@ -66,13 +70,72 @@ sub _setup_helpers {
 
 }
 
+sub _setup_openapi {
+    my $self = shift;
+
+    $self->plugin('OpenAPI', {
+        url      => $self->home->child('api/stega.yaml'),
+        schema   => 'v3',
+        security => {
+            bearerAuth => sub {
+                my ($c, $definition, $scopes, $cb) = @_;
+
+                my $auth = $c->req->headers->authorization // '';
+                my ($token) = ($auth =~ /^Bearer\s+(.+)$/i);
+                return $c->$cb('Autenticação necessária') unless $token;
+
+                my ($claims, $err) = $c->verify_jwt($token);
+                return $c->$cb('Token inválido') if $err;
+
+                my $role = $claims->{role}
+                    // do {
+                        my $roles = ($claims->{realm_access} // {})->{roles} // [];
+                        (grep { /^(admin|agent|customer)$/ } @$roles)[0] // 'customer'
+                    };
+
+                # Sincroniza o usuário no banco e obtém o UUID interno
+                my $db_user = eval {
+                    $c->pg->db->query(
+                        q{INSERT INTO users (keycloak_id, email, display_name, role)
+                          VALUES ($1, $2, $3, $4)
+                          ON CONFLICT (keycloak_id) DO UPDATE
+                            SET email        = EXCLUDED.email,
+                                display_name = EXCLUDED.display_name,
+                                role         = EXCLUDED.role
+                          RETURNING id},
+                        $claims->{sub},
+                        $claims->{email} // '',
+                        $claims->{preferred_username} // $claims->{name} // 'Usuário',
+                        $role
+                    )->hash;
+                };
+
+                $c->stash(
+                    jwt_claims   => $claims,
+                    current_user => {
+                        id           => $db_user ? $db_user->{id} : undef,
+                        keycloak_id  => $claims->{sub},
+                        email        => $claims->{email} // '',
+                        display_name => $claims->{preferred_username} // $claims->{name} // 'Usuário',
+                        role         => $role,
+                    }
+                );
+
+                return $c->$cb(undef);
+            }
+        }
+    });
+}
+
 sub _setup_routes {
     my $self = shift;
 
     my $r = $self->routes;
 
-    # Rotas públicas
+    # Health check — infraestrutura, fora do plugin OpenAPI e sem autenticação
     $r->get('/healthz')->to('health#check');
+
+    # Rotas de autenticação OIDC (públicas, fora do plugin OpenAPI)
     $r->get('/login')->to('auth#login');
     $r->get('/auth/callback')->to('auth#callback');
     $r->get('/logout')->to('auth#logout');
@@ -86,43 +149,18 @@ sub _setup_routes {
     $web->get('/tickets/:id')->to('ticket#show');
     $web->post('/tickets/:id/comments')->to('comment#web_create');
     $web->post('/tickets/:id/status')->to('ticket#update_status');
+    $web->post('/tickets/:id/assign')->to('ticket#assign');
     $web->get('/profile')->to('auth#profile');
     $web->post('/profile/avatar')->to('auth#update_avatar');
     $web->get('/profile/password')->to('auth#change_password');
 
-    # Rotas de administração (requer papel admin)
+    # Rotas de administração web (requer papel admin)
     my $admin = $web->under('/admin')->to('auth#require_admin');
     $admin->get('/products')->to('product#index');
     $admin->get('/products/new')->to('product#new_form');
     $admin->post('/products')->to('product#create');
     $admin->patch('/products/:id')->to('product#update');
     $admin->get('/users')->to('user#index');
-
-    # Rotas da API REST (JWT Bearer)
-    my $api = $r->under('/api/v1')->to('auth#require_jwt');
-
-    $api->get('/tickets')->to('ticket#api_list');
-    $api->post('/tickets')->to('ticket#api_create');
-    $api->get('/tickets/:id')->to('ticket#api_show');
-    $api->patch('/tickets/:id')->to('ticket#api_update');
-    $api->delete('/tickets/:id')->to('ticket#api_delete');
-
-    $api->get('/tickets/:id/comments')->to('comment#api_list');
-    $api->post('/tickets/:id/comments')->to('comment#api_create');
-    $api->patch('/tickets/:ticket_id/comments/:id')->to('comment#api_update');
-
-    $api->get('/tickets/:id/events')->to('ticket#api_events');
-
-    $api->get('/products')->to('product#api_list');
-    $api->post('/products')->to('product#api_create');
-    $api->patch('/products/:id')->to('product#api_update');
-
-    $api->get('/users')->to('user#api_list');
-    $api->get('/users/:id')->to('user#api_show');
-
-    # Webhooks (autenticados por assinatura HMAC, não JWT)
-    $r->post('/api/v1/webhooks/github')->to('webhook#github');
-    $r->post('/api/v1/webhooks/generic')->to('webhook#generic');
 }
 
 sub _decode_jwt_token {
@@ -142,17 +180,19 @@ sub _decode_jwt_token {
         return decode_jwt(token => $token, key => $secret, accepted_alg => 'HS256');
     }
 
-    # RS256/RS384/RS512: busca chave pública via JWKS do Keycloak
-    my $keycloak_url = $ENV{KEYCLOAK_URL} or die "KEYCLOAK_URL não configurada";
-    my $realm        = $ENV{KEYCLOAK_REALM} // 'stega';
+    # RS256/RS384/RS512: busca chave pública via JWKS do Keycloak (cache por processo)
+    unless ($jwks_cache) {
+        my $keycloak_url = $ENV{KEYCLOAK_URL} or die "KEYCLOAK_URL não configurada";
+        my $realm        = $ENV{KEYCLOAK_REALM} // 'stega';
 
-    require Mojo::UserAgent;
-    my $jwks = Mojo::UserAgent->new
-        ->get("$keycloak_url/realms/$realm/protocol/openid-connect/certs")
-        ->result->json;
+        require Mojo::UserAgent;
+        $jwks_cache = Mojo::UserAgent->new
+            ->get("$keycloak_url/realms/$realm/protocol/openid-connect/certs")
+            ->result->json;
+    }
 
-    my ($jwk) = grep { ($_->{use} // '') eq 'sig' } @{$jwks->{keys} // []};
-    $jwk //= ($jwks->{keys} // [])->[0];
+    my ($jwk) = grep { ($_->{use} // '') eq 'sig' } @{$jwks_cache->{keys} // []};
+    $jwk //= ($jwks_cache->{keys} // [])->[0];
     die "Nenhuma chave encontrada no JWKS do Keycloak" unless $jwk;
 
     return decode_jwt(

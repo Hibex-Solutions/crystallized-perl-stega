@@ -1,0 +1,54 @@
+{
+  "realm": "stega",
+  "displayName": "Stega",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "accessTokenLifespan": 3600,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Administrador da plataforma"
+      },
+      {
+        "name": "agent",
+        "description": "Agente de suporte"
+      },
+      {
+        "name": "customer",
+        "description": "Cliente da plataforma"
+      }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "stega-web",
+      "name": "Stega Web",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": ""
+      }
+    }
+  ]
+}

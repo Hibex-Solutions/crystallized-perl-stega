@@ -9,6 +9,7 @@ sub index {
 
 sub api_list {
     my $c    = shift;
+    $c->openapi->valid_input or return;
     my $role = ($c->stash('current_user') // {})->{role} // 'customer';
 
     return $c->render(json => { error => 'Sem permissão' }, status => 403)
@@ -24,6 +25,7 @@ sub api_list {
 
 sub api_show {
     my $c  = shift;
+    $c->openapi->valid_input or return;
     my $id = $c->param('id');
 
     my $user = $c->pg->db->query(
