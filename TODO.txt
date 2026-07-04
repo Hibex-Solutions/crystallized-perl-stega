@@ -168,15 +168,20 @@ Backlog (ideias levantadas na validação completa de 2026-07-03, não urgentes)
   considerar isso pronto para produção — hoje é só uma decisão de
   demonstração, não uma ADR.
 
-- [BACKLOG] Botão para limpar o formulário de busca de tickets
-  (`templates/tickets/index.html.ep`) — hoje o formulário tem só o campo `q`,
-  o `select` de `status` e o botão "Filtrar" (`GET` para `/tickets` com os
-  parâmetros preenchidos); não existe nenhuma forma de voltar ao estado sem
-  filtro a não ser apagar o texto manualmente e reenviar. Adicionar um link/
-  botão "Limpar" ao lado de "Filtrar" que navegue para `/tickets` sem query
-  string (equivalente a `<a href="/tickets" class="btn btn-outline-secondary">Limpar</a>`,
-  sem precisar de JS — mesmo padrão dos demais controles do formulário, que
-  já são só HTML/Bootstrap).
+- [RESOLVIDO 2026-07-04] Botão para limpar o formulário de busca de tickets
+  (`templates/tickets/index.html.ep`) — o formulário só tinha o campo `q`, o
+  `select` de `status` e o botão "Filtrar", sem forma de voltar ao estado sem
+  filtro a não ser apagar o texto manualmente.
+  → Adicionado link "Limpar" (`<a href="/tickets" class="btn btn-outline-secondary">`,
+  sem JS) ao lado de "Filtrar". Grid ajustado de `col-md-6/3/3` para
+  `col-md-5/3/2/2` para caber os dois botões lado a lado. Validado contra a
+  aplicação real em Docker: login via fluxo OAuth completo simulado por
+  `curl` (POST direto no form de login do Keycloak, seguindo os redirects até
+  a sessão do app), depois `GET /tickets` confirmando os dois botões
+  renderizados; `GET /tickets?q=login` mantém `value="login"` no campo (o
+  resultado vazio é esperado — o ticket do seed pertence a outro customer,
+  não a `maria.cliente`); `GET /tickets` (via "Limpar") volta com
+  `value=""` e nenhum status selecionado.
 
 ---
 

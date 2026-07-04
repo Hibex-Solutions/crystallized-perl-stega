@@ -7,7 +7,7 @@
 
 <form method="GET" class="mb-4">
   <div class="row g-2">
-    <div class="col-md-6">
+    <div class="col-md-5">
       <input type="text" name="q" class="form-control"
              placeholder="Buscar tickets..." value="<%= $q // '' %>">
     </div>
@@ -19,8 +19,11 @@
         % }
       </select>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-2">
       <button type="submit" class="btn btn-outline-secondary w-100">Filtrar</button>
+    </div>
+    <div class="col-md-2">
+      <a href="/tickets" class="btn btn-outline-secondary w-100">Limpar</a>
     </div>
   </div>
 </form>
