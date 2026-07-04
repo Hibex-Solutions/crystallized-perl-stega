@@ -4,7 +4,7 @@ use utf8;
 use Moo;
 use namespace::autoclean;
 
-use Mojo::JSON qw(encode_json decode_json);
+use Mojo::JSON qw(encode_json);
 
 with 'Stega::Repository::Ticket';
 
@@ -64,7 +64,7 @@ sub list_for_web {
           ORDER BY t.updated_at DESC
           LIMIT \$$limit_n OFFSET \$$offset_n",
         @$binds
-    )->hashes;
+    )->expand->hashes;
 }
 
 sub list_for_api {
@@ -84,7 +84,7 @@ sub list_for_api {
           ORDER BY t.updated_at DESC
           LIMIT \$$limit_n OFFSET \$$offset_n",
         @$binds
-    )->hashes;
+    )->expand->hashes;
 }
 
 sub list_for_dashboard {
@@ -101,7 +101,7 @@ sub list_for_dashboard {
               ORDER BY t.updated_at DESC
               LIMIT 10',
             $args{user_id}, 'closed'
-        )->hashes;
+        )->expand->hashes;
     }
 
     return $self->db->query(
@@ -120,12 +120,12 @@ sub list_for_dashboard {
              END,
              t.created_at ASC
            LIMIT 20}
-    )->hashes;
+    )->expand->hashes;
 }
 
 sub find {
     my ($self, $id) = @_;
-    return $self->db->query('SELECT * FROM tickets WHERE id = $1', $id)->hash;
+    return $self->db->query('SELECT * FROM tickets WHERE id = $1', $id)->expand->hash;
 }
 
 sub find_for_show {
@@ -142,7 +142,7 @@ sub find_for_show {
                LEFT JOIN users u ON u.id = t.assignee_id
               WHERE t.id = $1 AND t.author_id = $2',
             $id, $user_id
-          )->hash
+          )->expand->hash
         : $self->db->query(
             'SELECT t.*, p.name AS product_name,
                     a.display_name AS author_name,
@@ -153,7 +153,7 @@ sub find_for_show {
                LEFT JOIN users u ON u.id = t.assignee_id
               WHERE t.id = $1',
             $id
-          )->hash;
+          )->expand->hash;
 }
 
 sub list_agents_for_assignment {
@@ -163,12 +163,12 @@ sub list_agents_for_assignment {
     return $self->db->query(
         'SELECT id, display_name FROM users WHERE role = $1 ORDER BY display_name',
         'agent'
-    )->hashes if $mode eq 'all';
+    )->expand->hashes if $mode eq 'all';
 
     return $self->db->query(
         'SELECT id, display_name FROM users WHERE role = $1 AND id != $2 ORDER BY display_name',
         'agent', $args{exclude_user_id}
-    )->hashes if $mode eq 'exclude_self';
+    )->expand->hashes if $mode eq 'exclude_self';
 
     return [];
 }
@@ -176,22 +176,14 @@ sub list_agents_for_assignment {
 sub list_events {
     my ($self, $ticket_id) = @_;
 
-    my $events = $self->db->query(
+    return $self->db->query(
         'SELECT e.*, u.display_name AS actor_name
            FROM events e
            LEFT JOIN users u ON u.id = e.actor_id
           WHERE e.ticket_id = $1
           ORDER BY e.created_at',
         $ticket_id
-    )->hashes;
-
-    for my $ev (@$events) {
-        if (defined $ev->{payload} && !ref $ev->{payload}) {
-            $ev->{payload} = eval { decode_json($ev->{payload}) } // {};
-        }
-    }
-
-    return $events;
+    )->expand->hashes;
 }
 
 sub insert_ticket {
@@ -204,7 +196,7 @@ sub insert_ticket {
          VALUES ($1, $2, $3, $4, $5, $6::jsonb) RETURNING *',
         $attrs{product_id}, $attrs{author_id}, $attrs{title}, $attrs{body},
         $attrs{priority} // 'medium', $fields_json
-    )->hash;
+    )->expand->hash;
 }
 
 sub update_status {
@@ -215,7 +207,7 @@ sub update_status {
         "UPDATE tickets SET status = \$1, updated_at = NOW(), resolved_at = $resolved_at
           WHERE id = \$2 RETURNING *",
         $args{status}, $args{id}
-    )->hash;
+    )->expand->hash;
 }
 
 sub update_assignee {
@@ -224,7 +216,7 @@ sub update_assignee {
     return $self->db->query(
         'UPDATE tickets SET assignee_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
         $args{assignee_id}, $args{id}
-    )->hash;
+    )->expand->hash;
 }
 
 sub update_priority {
@@ -233,7 +225,7 @@ sub update_priority {
     return $self->db->query(
         'UPDATE tickets SET priority = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
         $args{priority}, $args{id}
-    )->hash;
+    )->expand->hash;
 }
 
 sub archive {
@@ -244,19 +236,19 @@ sub archive {
     return $self->db->query(
         "UPDATE tickets SET status = 'closed', updated_at = NOW() WHERE id = \$1 RETURNING *",
         $id
-    )->hash;
+    )->expand->hash;
 }
 
 sub find_product {
     my ($self, $product_id) = @_;
-    return $self->db->query('SELECT id, is_active FROM products WHERE id = $1', $product_id)->hash;
+    return $self->db->query('SELECT id, is_active FROM products WHERE id = $1', $product_id)->expand->hash;
 }
 
 sub find_assignee_candidate {
     my ($self, $user_id) = @_;
     return $self->db->query(
         'SELECT id, role, display_name FROM users WHERE id = $1', $user_id
-    )->hash;
+    )->expand->hash;
 }
 
 sub record_event {

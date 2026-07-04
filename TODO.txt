@@ -169,22 +169,30 @@ Pendências levantadas em 2026-07-03 (registradas, não implementadas):
   com `frontend_url` resolvido corretamente, e `NotificationWorker` conectando
   ao RabbitMQ via `Stega::Config` sem erro.
 
-- [PENDENTE] Colunas JSONB (`settings` de Product, `custom_fields` de Ticket,
-  `metadata` de Comment, `payload` de Event) retornam como string JSON crua na
-  API em vez de objeto aninhado — comportamento confirmado em toda a aplicação
-  ao validar o retrofit do Product (ver acima). `Repository::Pg::Ticket::
-  list_events` já contorna isso manualmente com `decode_json` línea a linha
+- [RESOLVIDO 2026-07-04] Colunas JSONB (`settings` de Product, `custom_fields`
+  de Ticket, `metadata` de Comment, `payload` de Event) retornavam como string
+  JSON crua na API em vez de objeto aninhado — comportamento confirmado em
+  toda a aplicação ao validar o retrofit do Product. `Repository::Pg::Ticket::
+  list_events` contornava isso manualmente com `decode_json` linha a linha
   porque não sabia da alternativa nativa.
-  → Pesquisado: `Mojo::Pg::Results` tem o método `expand()`, que decodifica
-  automaticamente todo campo `json`/`jsonb` do resultado para uma estrutura
-  Perl nativa — basta encadear `->expand->hash` ou `->expand->hashes` em vez de
-  `->hash`/`->hashes` puro, sem precisar de cast `::json` explícito na query
-  nem de `decode_json` manual depois. Referência:
-  Mojo::Pg::Results (https://docs.mojolicious.org/Mojo/Pg/Results).
-  Se adotado, o `decode_json` manual em `list_events` também seria removido
-  (fica redundante com `expand()`). Não implementado ainda — decisão de
-  aplicar em quais métodos (provavelmente todos os que retornam `settings`/
-  `custom_fields`/`metadata`/`payload`) fica para quando isso for priorizado.
+  → Adotado `Mojo::Pg::Results->expand`, que decodifica automaticamente todo
+  campo `json`/`jsonb` do resultado para uma estrutura Perl nativa. Encadeado
+  `->expand->hash`/`->expand->hashes` em **toda** query de leitura de
+  `Stega::Repository::Pg::{Product,Comment,Ticket}` (inclusive nas que não
+  tocam coluna JSONB — `expand` é no-op nesse caso; aplicar de forma uniforme
+  evita ter que auditar query por query). `decode_json` manual em
+  `list_events` removido, ficou redundante. `Stega::Repository::Pg::User` não
+  precisou de mudança — tabela `users` não tem coluna JSONB. Referência:
+  Mojo::Pg::Results (https://docs.mojolicious.org/Mojo/Pg/Results). Validado
+  via suíte completa (75 testes, `Result: PASS` — `t/020_products_api.t`
+  atualizado: antes documentava o bug com `like`/regex esperando string crua,
+  agora afirma `/data/settings/sla_hours/critical` como valor numérico
+  aninhado) e via `curl` contra a aplicação real em Docker (`GET
+  /api/v1/products` retorna `settings` como objeto `{"sla_hours":{...}}`, não
+  string). ADR-017 (repositório central) revisada para refletir esse padrão —
+  também corrigiu, de quebra, um segundo exemplo desatualizado na mesma ADR:
+  o padrão de escrita `{ json => ... }` mostrado lá nunca foi usado de fato;
+  o código real sempre fez `encode_json()` explícito + cast `::jsonb` no bind.
 
 - [RESOLVIDO 2026-07-03 — achado relacionado, correção de trabalho anterior] Ao
   investigar o item de configuração acima, descobri que a unificação do upsert

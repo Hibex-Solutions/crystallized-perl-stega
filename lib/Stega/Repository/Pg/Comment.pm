@@ -12,7 +12,7 @@ has db => (is => 'ro', required => 1);   # $c->pg->db
 
 sub ticket_exists {
     my ($self, $ticket_id) = @_;
-    return !!$self->db->query('SELECT id FROM tickets WHERE id = $1', $ticket_id)->hash;
+    return !!$self->db->query('SELECT id FROM tickets WHERE id = $1', $ticket_id)->expand->hash;
 }
 
 sub list {
@@ -28,14 +28,14 @@ sub list {
             WHERE c.ticket_id = $1 AND c.is_internal = false
             ORDER BY c.created_at';
 
-    return $self->db->query($sql, $args{ticket_id})->hashes;
+    return $self->db->query($sql, $args{ticket_id})->expand->hashes;
 }
 
 sub find {
     my ($self, $id, $ticket_id) = @_;
     return $self->db->query(
         'SELECT * FROM comments WHERE id = $1 AND ticket_id = $2', $id, $ticket_id
-    )->hash;
+    )->expand->hash;
 }
 
 sub insert {
@@ -48,14 +48,14 @@ sub insert {
          VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *',
         $attrs{ticket_id}, $attrs{author_id}, $attrs{body},
         $attrs{is_internal} ? 1 : 0, $meta_json
-    )->hash;
+    )->expand->hash;
 }
 
 sub update_body {
     my ($self, %args) = @_;
 
     $self->db->query('UPDATE comments SET body = $1, updated_at = NOW() WHERE id = $2', $args{body}, $args{id});
-    return $self->db->query('SELECT * FROM comments WHERE id = $1', $args{id})->hash;
+    return $self->db->query('SELECT * FROM comments WHERE id = $1', $args{id})->expand->hash;
 }
 
 sub touch_ticket {

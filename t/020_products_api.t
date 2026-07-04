@@ -68,12 +68,8 @@ subtest 'PATCH /api/v1/products/:id — admin atualiza campos (Stega::Repository
         settings   => { sla_hours => { critical => 1, high => 2, medium => 6, low => 24 } },
     })->status_is(200)
       ->json_is('/data/name', 'Produto Via API Atualizado')
-      ->json_is('/data/is_active', 0);
-
-    # settings (JSONB) volta como string JSON crua nesta API, não como objeto
-    # aninhado — mesmo comportamento de custom_fields/metadata em Ticket/Comment,
-    # anterior a este retrofit. Confere o conteúdo pelo texto, não por JSON Pointer.
-    like $t->tx->res->json->{data}{settings}, qr/"critical":\s*1\b/, 'settings persistido (cast ::jsonb aplicado)';
+      ->json_is('/data/is_active', 0)
+      ->json_is('/data/settings/sla_hours/critical', 1);
 };
 
 subtest 'PATCH /api/v1/products/:id — sem campos retorna 400' => sub {
