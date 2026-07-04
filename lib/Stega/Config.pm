@@ -37,6 +37,12 @@ sub load {
             # Bruto — a chamada de token (server-a-servidor) e o JWKS morrem
             # se ausente; os redirects web (login/logout/troca de senha) usam
             # `frontend_url` abaixo, que já resolve para localhost.
+            #
+            # Não inclui credenciais administrativas do Keycloak: nenhum
+            # consumidor de app usa a API administrativa em runtime, só
+            # eng/keycloak_test_users.pl (setup de usuários de teste), que lê
+            # KEYCLOAK_ADMIN_USER/PASSWORD direto de %ENV — não pertence à
+            # configuração da aplicação.
             url           => $keycloak_url,
             frontend_url  => $ENV{KEYCLOAK_FRONTEND_URL} // $keycloak_url // 'http://localhost:8080',
             realm         => $ENV{KEYCLOAK_REALM}         // 'stega',

@@ -100,8 +100,7 @@ perl eng/setup.pl
 > `lib/Stega/Worker/NotificationWorker.pm` e `eng/worker.pl` — nenhum outro módulo da
 > aplicação depende dele. Para desenvolvimento local no Windows, use o Caminho C
 > (Docker Compose) especificamente para o notification worker; o resto da aplicação
-> funciona normalmente com Perl nativo. Ver `TESTING.md` (Parte 0) para o roteiro
-> de validação que já contempla essa exceção.
+> funciona normalmente com Perl nativo.
 
 > Se precisar adicionar ou atualizar uma dependência, rode `carton install` (sem `--deployment`),
 > que atualiza o `cpanfile.snapshot`. Depois de testar, commite o snapshot atualizado.
@@ -317,8 +316,7 @@ my $token = make_jwt(role => 'agent', sub => 'meu-id', email => 'eu@dev.local');
 > mas atrasado, e no `prove` especificamente (que usa retorno de carro para a linha de
 > progresso) o mesmo problema aparece como corrupção visível. Rode também
 > `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` uma vez por sessão —
-> sem isso, `| Out-Host` corrige a sincronia mas introduz acentos corrompidos. Ver
-> `TESTING.md` para o roteiro completo com essa e outras notas específicas do Windows.
+> sem isso, `| Out-Host` corrige a sincronia mas introduz acentos corrompidos.
 
 ```bash
 # Testes unitários de regra de negócio (t/unit/domain/) não precisam de banco —

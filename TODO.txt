@@ -146,6 +146,38 @@ Backlog (ideias levantadas na validação completa de 2026-07-03, não urgentes)
   `Ticket`/`Comment` (2026-07-03) — condição que este item aguardava para ser
   retomado; segue como backlog não-urgente, agora desbloqueado.
 
+- [BACKLOG] Revisar autenticação dos endpoints de webhook. Estado atual em
+  `Stega::Controller::Webhook`: `POST /api/v1/webhooks/generic` não tem
+  autenticação nenhuma — qualquer chamador cria um ticket associado a
+  qualquer produto pelo slug, sem nenhuma verificação (documentado como
+  intencional em `BUSINESS.md`: "Não requer autenticação", mas vale
+  reconfirmar se isso é aceitável ou só um placeholder de demonstração).
+  `POST /api/v1/webhooks/github` já valida assinatura HMAC-SHA256
+  (`X-Hub-Signature-256`) contra `GITHUB_WEBHOOK_SECRET` — mas essa
+  verificação é **desativada por padrão** (`_verify_github_signature` retorna
+  aceito quando o segredo não está configurado, que é o caso em
+  desenvolvimento/`.env.example`), então nenhum dos dois endpoints tem
+  proteção real num ambiente rodando com a configuração padrão.
+  Webhooks tipicamente não usam OAuth/Bearer token (o chamador é outro
+  sistema, não um usuário) — o padrão do mercado é uma chave/segredo
+  compartilhado por chamador. Pesquisar o que o GitHub oferece hoje além do
+  HMAC já implementado (ex.: rotação de segredo com múltiplos segredos
+  aceitos simultaneamente, IP allowlist dos webhooks do GitHub) e decidir se
+  o endpoint `generic` (usado por "sistemas externos" genéricos, não só
+  GitHub) precisa de um mecanismo próprio de chave por chamador antes de
+  considerar isso pronto para produção — hoje é só uma decisão de
+  demonstração, não uma ADR.
+
+- [BACKLOG] Botão para limpar o formulário de busca de tickets
+  (`templates/tickets/index.html.ep`) — hoje o formulário tem só o campo `q`,
+  o `select` de `status` e o botão "Filtrar" (`GET` para `/tickets` com os
+  parâmetros preenchidos); não existe nenhuma forma de voltar ao estado sem
+  filtro a não ser apagar o texto manualmente e reenviar. Adicionar um link/
+  botão "Limpar" ao lado de "Filtrar" que navegue para `/tickets` sem query
+  string (equivalente a `<a href="/tickets" class="btn btn-outline-secondary">Limpar</a>`,
+  sem precisar de JS — mesmo padrão dos demais controles do formulário, que
+  já são só HTML/Bootstrap).
+
 ---
 
 Pendências levantadas em 2026-07-03 (registradas, não implementadas):
@@ -213,9 +245,9 @@ Pendências levantadas em 2026-07-03 (registradas, não implementadas):
   `Result: PASS` — toda requisição autenticada de todo teste passa por este
   handler) contra Postgres real em Docker, do zero.
 
-- [PENDENTE] `TESTING.md` precisa ser reescrito para ser um guia enxuto de
-  teste guiado da aplicação, não um log histórico de validação da
-  implementação Domain+Repository/Ticket/Comment. Hoje o arquivo mistura dois
+- [RESOLVIDO 2026-07-04] `TESTING.md` precisava ser reescrito para ser um guia
+  enxuto de teste guiado da aplicação, não um log histórico de validação da
+  implementação Domain+Repository/Ticket/Comment. O arquivo misturava dois
   propósitos diferentes:
   1. Validar que a implementação de uma rodada específica funcionou (o que
      interessa a quem está desenvolvendo a Stega ou o stack central).
@@ -248,11 +280,72 @@ Pendências levantadas em 2026-07-03 (registradas, não implementadas):
     propósito do guia e deveria ficar, só que reescrito de forma mais direta
     (o fato + a explicação mínima, sem o histórico de quando isso foi
     percebido).
-  Direção proposta (a confirmar na implementação): `TESTING.md` foca só no
-  equivalente à atual "Parte 1 — Validação completa via Docker Compose"
-  (build, subir infraestrutura, migrations/seed, suíte automatizada, subir a
-  app, configurar usuários no Keycloak, roteiro de validação via `curl`,
-  roteiro de validação de UI por perfil) — comandos diretos, resultado
+  → `TESTING.md` reescrito focando só no equivalente da antiga "Parte 1 —
+  Validação completa via Docker Compose" (build, infraestrutura, migrations/
+  seed, suíte automatizada, subir a app, configurar usuários no Keycloak,
+  roteiro `curl`, roteiro de UI por perfil) — comandos diretos, resultado
   esperado, sem explicar por que cada coisa funciona ou o que já deu errado
-  antes. `DEVELOPMENT.md` continua sendo o lugar para quem quer desenvolver
-  localmente com Perl instalado.
+  antes. A nota sobre tickets de teste sem `ticket.created` no histórico foi
+  mantida (encurtada, sem o histórico de quando foi percebida) — evita que
+  quem testa a UI ache que achou um bug. `DEVELOPMENT.md` ganhou duas
+  correções de referência cruzada: a nota de `Net::AMQP::RabbitMQ` no Windows
+  e a de `carton exec | Out-Host` apontavam para "TESTING.md (Parte 0)", que
+  deixou de existir — removidas (o conteúdo já estava completo no próprio
+  parágrafo de `DEVELOPMENT.md`, a referência era redundante). Suíte completa
+  revalidada após a reescrita (12 arquivos, 75 testes, `Result: PASS`,
+  Docker Compose).
+
+- [RESOLVIDO 2026-07-04] `TESTING.md` não cobria várias funcionalidades e
+  regras ajustadas nas rodadas anteriores (filtros `q`/`status`/paginação em
+  `Repository::Pg::Ticket::list_for_api`, os bugs reais 500→422/404/403 do
+  retrofit Domain+Repository, e os dois endpoints de webhook — nenhum tinha
+  um cenário manual). Além disso, a seção "7. Configurar usuários no
+  Keycloak" era 100% manual (criar 3 usuários via UI a cada ciclo de
+  validação), o que o usuário queria substituir por um script idempotente,
+  já que o Keycloak sobe via Docker Compose e tem API administrativa própria.
+  → `eng/keycloak_test_users.pl` (novo — nome deliberadamente explícito sobre
+  ser setup de TESTE, não configuração geral: um `keycloak_setup.pl` genérico
+  sugeriria algo que a aplicação usa em runtime): garante os 3 usuários de
+  teste via API administrativa do Keycloak (`Mojo::UserAgent`, sem
+  dependência nova — já é core do Mojolicious), idempotente (busca por
+  `username` antes de criar; senha e papel são sempre reforçados, criado ou
+  não). Novo serviço `keycloak-test-users` no `compose.yml` (perfil `full`,
+  mesmo padrão de `migrate`/`seed`). `KEYCLOAK_ADMIN_USER`/`PASSWORD` (default
+  `admin`/`admin`, mesmas credenciais de `KC_BOOTSTRAP_ADMIN_USERNAME`/
+  `PASSWORD` já usadas para o console) são lidas direto de `%ENV` pelo
+  script — **não** entraram em `Stega::Config`: nenhum consumidor da
+  aplicação em runtime usa a API administrativa do Keycloak, só este script
+  de teste, então centralizar essas credenciais no config da aplicação
+  implicaria um uso que não existe. Dois achados reais ao validar contra o
+  Keycloak de verdade (não só lendo a API):
+  (1) o serviço `keycloak` no `compose.yml` **não tem healthcheck** (a imagem
+  oficial não traz `curl`/`wget` para um `CMD-SHELL` simples) — um
+  `depends_on: condition: service_healthy` nunca teria funcionado; corrigido
+  para `service_started`, e o próprio script espera (até 2 min, com retry)
+  a realm `stega` responder antes de agir, o que também elimina a
+  necessidade de quem roda o guia acompanhar os logs manualmente (seção 3 do
+  `TESTING.md` atualizada); (2) criar um usuário só com `username`/`email`
+  faz o login por senha falhar com `"Account is not fully set up"` — o
+  Keycloak exige `firstName`/`lastName` (perfil padrão do realm) e isso não
+  aparece em `requiredActions` da representação do usuário, só se manifesta
+  no login; corrigido incluindo os dois campos na criação e reforçando-os
+  também para usuários já existentes (self-healing para quem rodou uma
+  versão anterior do script). Validado de ponta a ponta: login via
+  `client_id=stega-web` funciona para os 3 papéis, `realm_access.roles` do
+  token confere, e rodar o script 2-3x seguidas não duplica usuário nenhum.
+  → `TESTING.md`: seção 7 passou a só rodar o script; adicionadas 3 novas
+  subseções na seção 8 (filtros de listagem, validações/regras de negócio —
+  produto inexistente, ticket/comentário órfão, permissão de produto, slug
+  duplicado com conferência de que `settings` volta como objeto aninhado
+  (ver item anterior de JSONB), atribuição de responsável inválido — e
+  webhooks genérico/GitHub, usando o `github_repo`/slug já presentes no
+  seed). Checklist final atualizada. Dois bugs reais nos exemplos, achados
+  só ao copiar-colar de verdade: `-o $null` no PowerShell não suprime o
+  corpo do `curl` (interpola para string vazia, não é o dispositivo nulo do
+  Windows) — trocado por `-o NUL`; e o nome literal `"Produto Guia"` no
+  exemplo de slug duplicado colidia com a unicidade de **nome** (constraint
+  diferente da de slug, que é o que o cenário queria demonstrar) se o
+  cenário fosse repetido no mesmo ambiente — nome e slug passaram a usar o
+  mesmo sufixo aleatório. Suíte completa revalidada do zero (75 testes,
+  `Result: PASS`) e todo o roteiro de `curl` das seções 7 e 8 executado de
+  ponta a ponta em PowerShell real contra a aplicação em Docker.

@@ -84,6 +84,22 @@ services:
     command: perl eng/seed.pl
     restart: "no"
 
+  # Só prepara usuários de TESTE no Keycloak (ver TESTING.md) — não é
+  # configuração geral da aplicação.
+  keycloak-test-users:
+    profiles: [full]
+    build: .
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: stega
+      KEYCLOAK_ADMIN_USER: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    command: perl eng/keycloak_test_users.pl
+    restart: "no"
+
   app:
     profiles: [full]
     build: .
