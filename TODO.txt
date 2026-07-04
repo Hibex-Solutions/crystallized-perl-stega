@@ -138,13 +138,23 @@ resposta de cada uma está na ADR referenciada.
 
 Backlog (ideias levantadas na validação completa de 2026-07-03, não urgentes):
 
-- [BACKLOG] Badge visual com o tipo do evento no histórico do ticket
-  (`templates/tickets/show.html.ep`) — além da mensagem legível já existente
-  ("Ticket criado...", "Status: x → y...", "Responsável: ..."), um badge com o tipo
-  cru (`ticket.created`, `status.changed`, `assigned`) deixaria a timeline mais
-  escaneável visualmente. O padrão Domain+Repository já foi replicado para
-  `Ticket`/`Comment` (2026-07-03) — condição que este item aguardava para ser
-  retomado; segue como backlog não-urgente, agora desbloqueado.
+- [RESOLVIDO 2026-07-04] Badge visual com o tipo do evento no histórico do
+  ticket (`templates/tickets/show.html.ep`) — além da mensagem legível já
+  existente ("Ticket criado...", "Status: x → y...", "Responsável: ..."), um
+  badge com o tipo cru deixaria a timeline mais escaneável visualmente.
+  → Badge `bg-secondary` adicionado ao lado do timestamp de cada evento
+  (mesmo padrão do badge "Interno" já usado nesta página), mostrando
+  `$ev->{type}` cru. A mensagem de fallback para tipos não tratados
+  explicitamente (usada por `ticket.sla_breached`, gerado por
+  `Stega::Job::CheckSlaBreaches` via SQL direto, fora do fluxo
+  Domain+Repository) foi simplificada de `"<em>tipo</em> por ator"` para só
+  `"Evento por ator"` — o tipo cru já fica coberto pelo badge, exibi-lo nos
+  dois lugares seria redundante. Validado contra a aplicação real em Docker:
+  login OAuth via `curl` como admin, ticket criado pelo formulário web,
+  atribuído a um agente e com status alterado (tudo via POST real nas rotas
+  `/tickets`, `/tickets/:id/assign`, `/tickets/:id/status`) — os três badges
+  (`ticket.created`, `assigned`, `status.changed`) renderizaram corretamente
+  ao lado do timestamp de cada evento na página de detalhe do ticket.
 
 - [BACKLOG] Revisar autenticação dos endpoints de webhook. Estado atual em
   `Stega::Controller::Webhook`: `POST /api/v1/webhooks/generic` não tem

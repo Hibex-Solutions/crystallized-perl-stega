@@ -156,7 +156,10 @@
         <ul class="list-group list-group-flush">
           % for my $ev (@{$events // []}) {
           <li class="list-group-item py-2 px-3">
-            <small class="text-muted d-block"><%= $ev->{created_at} %></small>
+            <small class="text-muted d-block">
+              <%= $ev->{created_at} %>
+              <span class="badge bg-secondary ms-1"><%= $ev->{type} %></span>
+            </small>
             % if ($ev->{type} eq 'ticket.created') {
             <span>Ticket criado por <strong><%= $ev->{actor_name} // '?' %></strong></span>
             % } elsif ($ev->{type} eq 'status.changed') {
@@ -171,7 +174,7 @@
             <span>Responsável removido por <%= $ev->{actor_name} // '?' %></span>
             %   }
             % } else {
-            <span><em><%= $ev->{type} %></em> por <%= $ev->{actor_name} // '?' %></span>
+            <span>Evento por <%= $ev->{actor_name} // '?' %></span>
             % }
           </li>
           % }
