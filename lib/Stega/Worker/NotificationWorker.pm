@@ -1,21 +1,25 @@
 package Stega::Worker::NotificationWorker;
-use strict;
-use warnings;
-use feature 'say';
+use v5.42;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+$| = 1;
 
 use Net::AMQP::RabbitMQ;
 use JSON::PP qw(decode_json);
 
+use Stega::Config;
+
 sub run {
-    my $mq = Net::AMQP::RabbitMQ->new;
+    my $rabbitmq = Stega::Config::load()->{rabbitmq};
+    my $mq       = Net::AMQP::RabbitMQ->new;
 
     $mq->connect(
-        $ENV{RABBITMQ_HOST} // 'localhost',
+        $rabbitmq->{host},
         {
-            user     => $ENV{RABBITMQ_USER}     // 'stega',
-            password => $ENV{RABBITMQ_PASSWORD} // 'dev_password',
-            vhost    => $ENV{RABBITMQ_VHOST}    // '/',
-            port     => $ENV{RABBITMQ_PORT}     // 5672,
+            user     => $rabbitmq->{user},
+            password => $rabbitmq->{password},
+            vhost    => $rabbitmq->{vhost},
+            port     => $rabbitmq->{port},
         }
     );
 

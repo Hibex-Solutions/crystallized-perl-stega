@@ -57,8 +57,8 @@ componentes do stack Crystallized Perl com casos de uso autênticos:
 
 ## Pré-requisitos
 
-- **Perl 5.42+** (via [perlbrew](https://perlbrew.pl/) no Linux/macOS ou [berrybrew](https://github.com/dnmfarrell/berrybrew) no Windows)
-- **Carton** (`cpanm Carton`)
+- **Perl 5.42+** (via [perlbrew](https://perlbrew.pl/) no Linux/macOS ou [berrybrew](https://github.com/stevieb9/berrybrew) no Windows)
+- **Carton** (`cpanm --notest Carton`)
 - **Docker** e **Docker Compose**
 
 Consulte [DEVELOPMENT.md](DEVELOPMENT.md) para o guia completo de instalação passo a passo.
@@ -96,7 +96,8 @@ carton exec prove -lr t/
 Para gerar relatório de cobertura de código:
 
 ```bash
-carton exec cover -test -report html
+HARNESS_PERL_SWITCHES='-MDevel::Cover=-ignore,local/' carton exec prove -lr t/
+carton exec cover -report html
 open cover_db/coverage.html
 ```
 
@@ -121,12 +122,14 @@ Todos os três são declarados no `compose.yml` para execução local completa.
 ```
 crystallized-perl-stega/
 ├── api/stega.yaml          ← contrato OpenAPI v3 completo
-├── migrations/             ← 7 migrations SQL (via Mojo::Pg)
+├── migrations/             ← 9 migrations (migrations/N/{up,down}.sql via Mojo::Pg::Migrations->from_dir)
 ├── lib/
 │   ├── Stega.pm            ← aplicação principal (herda Mojolicious)
 │   └── Stega/
 │       ├── Controller/     ← 8 controllers (Auth, Dashboard, Ticket, Comment...)
 │       ├── Model/          ← 4 modelos Moo (Ticket, Comment, Product, User)
+│       ├── Domain/         ← Policy (autorização) + Domain (regra + execução, ADR-020) — testáveis sem banco
+│       ├── Repository/     ← contrato (Moo::Role) + implementação Pg — ADR-020
 │       ├── Job/            ← 4 jobs Minion
 │       └── Worker/         ← NotificationWorker (Net::AMQP::RabbitMQ)
 ├── templates/              ← templates Mojolicious (interface server-rendered)

@@ -1,6 +1,8 @@
 package Stega::Controller::Auth;
 use Mojo::Base 'Mojolicious::Controller', -strict;
 
+use Stega::Repository::Pg::User;
+
 
 # ─── Under-handlers (usados em rotas protegidas) ───────────────────────────
 
@@ -35,68 +37,18 @@ sub require_admin {
     return 1;
 }
 
-sub require_jwt {
-    my $c = shift;
-
-    my $auth = $c->req->headers->authorization // '';
-    my ($token) = $auth =~ /^Bearer\s+(.+)$/i;
-
-    unless ($token) {
-        $c->render(json => { error => 'Autenticação necessária' }, status => 401);
-        return undef;
-    }
-
-    my ($claims, $err) = $c->verify_jwt($token);
-    if ($err) {
-        $c->render(json => { error => 'Token inválido' }, status => 401);
-        return undef;
-    }
-
-    my $role = $claims->{role}
-        // do {
-            my $roles = ($claims->{realm_access} // {})->{roles} // [];
-            (grep { /^(admin|agent|customer)$/ } @$roles)[0] // 'customer'
-        };
-
-    # Sincroniza o usuário no banco e obtém o UUID interno (id)
-    my $db_user = eval {
-        $c->pg->db->query(
-            q{INSERT INTO users (keycloak_id, email, display_name, role)
-              VALUES ($1, $2, $3, $4)
-              ON CONFLICT (keycloak_id) DO UPDATE
-                SET email        = EXCLUDED.email,
-                    display_name = EXCLUDED.display_name,
-                    role         = EXCLUDED.role
-              RETURNING id},
-            $claims->{sub},
-            $claims->{email} // '',
-            $claims->{preferred_username} // $claims->{name} // 'Usuário',
-            $role
-        )->hash;
-    };
-
-    $c->stash(jwt_claims   => $claims);
-    $c->stash(current_user => {
-        id           => $db_user ? $db_user->{id} : undef,
-        keycloak_id  => $claims->{sub},
-        email        => $claims->{email},
-        display_name => $claims->{preferred_username} // $claims->{name} // 'Usuário',
-        role         => $role,
-    });
-
-    return 1;
-}
-
 # ─── Ações web ─────────────────────────────────────────────────────────────
 
 sub login {
     my $c = shift;
 
-    # KEYCLOAK_FRONTEND_URL: URL visível pelo browser (ex: http://localhost:8080 em Docker).
-    # Quando não definida, usa KEYCLOAK_URL (ambientes onde app e browser acessam pelo mesmo host).
-    my $keycloak_url    = $ENV{KEYCLOAK_FRONTEND_URL} // $ENV{KEYCLOAK_URL} // 'http://localhost:8080';
-    my $realm           = $ENV{KEYCLOAK_REALM}         // 'stega';
-    my $client_id       = $ENV{KEYCLOAK_CLIENT_ID}     // 'stega-web';
+    # keycloak.frontend_url: URL visível pelo browser (ex: http://localhost:8080 em
+    # Docker) — já resolve para keycloak.url quando não definida separadamente
+    # (ambientes onde app e browser acessam pelo mesmo host), ver Stega::Config.
+    my $kc              = $c->app->config->{keycloak};
+    my $keycloak_url    = $kc->{frontend_url};
+    my $realm           = $kc->{realm};
+    my $client_id       = $kc->{client_id};
     my $redirect_uri    = $c->url_for('/auth/callback')->to_abs;
 
     my $auth_url = Mojo::URL->new("$keycloak_url/realms/$realm/protocol/openid-connect/auth")
@@ -119,11 +71,14 @@ sub callback {
         return $c->render(text => "Erro de autenticação: $error", status => 400);
     }
 
-    my $keycloak_url = $ENV{KEYCLOAK_URL}          // 'http://localhost:8080';
-    my $realm        = $ENV{KEYCLOAK_REALM}         // 'stega';
-    my $client_id    = $ENV{KEYCLOAK_CLIENT_ID}     // 'stega-web';
-    my $client_secret = $ENV{KEYCLOAK_CLIENT_SECRET} // '';
-    my $redirect_uri = $c->url_for('/auth/callback')->to_abs;
+    my $kc            = $c->app->config->{keycloak};
+    # keycloak.url (não frontend_url): troca de código por token é servidor-a-servidor,
+    # não precisa do host visível pelo browser.
+    my $keycloak_url  = $kc->{url} // 'http://localhost:8080';
+    my $realm         = $kc->{realm};
+    my $client_id     = $kc->{client_id};
+    my $client_secret = $kc->{client_secret};
+    my $redirect_uri  = $c->url_for('/auth/callback')->to_abs;
 
     my $token_url = "$keycloak_url/realms/$realm/protocol/openid-connect/token";
 
@@ -149,7 +104,15 @@ sub callback {
         return $c->render(text => "Token inválido: $err", status => 401);
     }
 
-    my $user = _sync_user($c, $claims);
+    my $roles = ($claims->{realm_access} // {})->{roles} // [];
+    my $role  = (grep { /^(admin|agent|customer)$/ } @$roles)[0] // 'customer';
+
+    my $user = Stega::Repository::Pg::User->new(db => $c->pg->db)->upsert_from_keycloak(
+        keycloak_id  => $claims->{sub},
+        email        => $claims->{email} // '',
+        display_name => $claims->{preferred_username} // $claims->{name} // 'Usuário',
+        role         => $role,
+    );
 
     $c->session(
         user_id      => $user->{id},
@@ -170,9 +133,10 @@ sub logout {
     my $c = shift;
     $c->session(expires => 1);
 
-    my $keycloak_url = $ENV{KEYCLOAK_FRONTEND_URL} // $ENV{KEYCLOAK_URL} // 'http://localhost:8080';
-    my $realm        = $ENV{KEYCLOAK_REALM}         // 'stega';
-    my $client_id    = $ENV{KEYCLOAK_CLIENT_ID}     // 'stega-web';
+    my $kc           = $c->app->config->{keycloak};
+    my $keycloak_url = $kc->{frontend_url};
+    my $realm        = $kc->{realm};
+    my $client_id    = $kc->{client_id};
 
     my $logout_url = Mojo::URL->new("$keycloak_url/realms/$realm/protocol/openid-connect/logout")
         ->query(
@@ -186,11 +150,7 @@ sub logout {
 sub profile {
     my $c      = shift;
     my $user   = $c->stash('current_user');
-    my $db_user = $c->pg->db->query(
-        'SELECT id, keycloak_id, email, display_name, role, avatar_url, created_at
-           FROM users WHERE id = $1',
-        $user->{id}
-    )->hash;
+    my $db_user = Stega::Repository::Pg::User->new(db => $c->pg->db)->find($user->{id});
     $c->render(template => 'auth/profile', db_user => $db_user);
 }
 
@@ -200,10 +160,8 @@ sub update_avatar {
     my $avatar_url = $c->param('avatar_url') // '';
     my $user_id    = $c->stash('current_user')->{id};
 
-    $c->pg->db->query(
-        'UPDATE users SET avatar_url = $1 WHERE id = $2',
-        $avatar_url, $user_id
-    );
+    Stega::Repository::Pg::User->new(db => $c->pg->db)
+        ->update_avatar(id => $user_id, avatar_url => $avatar_url);
 
     $c->redirect_to('/profile');
 }
@@ -211,50 +169,13 @@ sub update_avatar {
 sub change_password {
     my $c = shift;
 
-    my $keycloak_url = $ENV{KEYCLOAK_FRONTEND_URL} // $ENV{KEYCLOAK_URL} // 'http://localhost:8080';
-    my $realm        = $ENV{KEYCLOAK_REALM}         // 'stega';
+    my $kc           = $c->app->config->{keycloak};
+    my $keycloak_url = $kc->{frontend_url};
+    my $realm        = $kc->{realm};
 
     $c->redirect_to(
         "$keycloak_url/realms/$realm/account/password"
     );
-}
-
-# ─── Privado ───────────────────────────────────────────────────────────────
-
-sub _sync_user {
-    my ($c, $claims) = @_;
-
-    my $keycloak_id = $claims->{sub};
-    my $email       = $claims->{email} // '';
-    my $name        = $claims->{preferred_username} // $claims->{name} // 'Usuário';
-    my $roles       = ($claims->{realm_access} // {})->{roles} // [];
-    my $role        = (grep { /^(admin|agent|customer)$/ } @$roles)[0] // 'customer';
-
-    my $existing = $c->pg->db->query(
-        'SELECT id, role FROM users WHERE keycloak_id = $1',
-        $keycloak_id
-    )->hash;
-
-    if ($existing) {
-        $c->pg->db->query(
-            'UPDATE users SET email = $1, display_name = $2, role = $3 WHERE keycloak_id = $4',
-            $email, $name, $role, $keycloak_id
-        );
-        return { id => $existing->{id}, display_name => $name, role => $role, email => $email };
-    }
-
-    my $new_id = $c->pg->db->query(
-        'INSERT INTO users (keycloak_id, email, display_name, role) VALUES ($1, $2, $3, $4) RETURNING id',
-        $keycloak_id, $email, $name, $role
-    )->hash->{id};
-
-    return {
-        id           => $new_id,
-        display_name => $name,
-        role         => $role,
-        email        => $email,
-        is_first_login => 1,
-    };
 }
 
 1;

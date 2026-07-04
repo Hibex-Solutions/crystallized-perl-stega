@@ -1,4 +1,4 @@
--- 2 up
+-- create_products: catálogo de produtos que recebem tickets de suporte
 CREATE TABLE products (
     id          BIGSERIAL    PRIMARY KEY,
     name        TEXT         NOT NULL,
@@ -11,6 +11,3 @@ CREATE TABLE products (
     is_active   BOOLEAN      NOT NULL DEFAULT true,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
-
--- 2 down
-DROP TABLE products;

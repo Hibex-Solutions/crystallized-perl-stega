@@ -1,6 +1,7 @@
 package Stega::Test::Helper;
-use strict;
-use warnings;
+use v5.42;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
 
 use Exporter 'import';
 our @EXPORT_OK = qw(make_jwt bearer_header);

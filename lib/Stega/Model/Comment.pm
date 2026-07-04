@@ -1,4 +1,6 @@
 package Stega::Model::Comment;
+use v5.42;
+use utf8;
 use Moo;
 use namespace::autoclean;
 

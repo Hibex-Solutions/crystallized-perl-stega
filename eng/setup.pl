@@ -1,8 +1,9 @@
 #!/usr/bin/env perl
 # eng/setup.pl — verifica se o ambiente local está configurado corretamente
-use strict;
-use warnings;
-use feature 'say';
+use v5.42;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+$| = 1;
 
 my @checks = (
     [ 'Perl >= 5.42'        => sub { $] >= 5.042 } ],

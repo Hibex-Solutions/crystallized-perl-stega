@@ -1,4 +1,4 @@
--- 3 up
+-- create_tickets: entidade central do sistema de suporte
 CREATE TABLE tickets (
     id              BIGSERIAL    PRIMARY KEY,
     product_id      BIGINT       NOT NULL REFERENCES products(id),
@@ -24,6 +24,3 @@ CREATE INDEX ON tickets (priority);
 CREATE INDEX ON tickets (assignee_id);
 CREATE INDEX ON tickets (product_id, status);
 CREATE INDEX ON tickets (author_id);
-
--- 3 down
-DROP TABLE tickets;

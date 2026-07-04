@@ -45,14 +45,26 @@ Documentação oficial: https://perlbrew.pl/
 
 ### Windows — berrybrew
 
+O repositório oficial e ativamente mantido é `stevieb9/berrybrew` (o projeto original,
+`dnmfarrell/berrybrew`, teve a manutenção transferida para Steve Bertrand — o próprio
+README de lá aponta para `stevieb9`). Instale via `berrybrewInstaller.exe` ou clonando
+o repositório:
+
 ```powershell
-# Execute como Administrador
+# Execute como Administrador (necessário para alterar o PATH de sistema)
+git clone https://github.com/stevieb9/berrybrew
+cd berrybrew
+bin\berrybrew.exe config
+
+# fetch atualiza o cache local de versões — sem isso, "berrybrew available"
+# costuma não listar versões recentes como 5.42.2_64 numa instalação nova
+berrybrew fetch
 berrybrew install 5.42.2_64
 berrybrew switch 5.42.2_64
 perl -v
 ```
 
-Documentação oficial: https://github.com/dnmfarrell/berrybrew
+Documentação oficial: https://github.com/stevieb9/berrybrew
 
 ### Configuração Git para evitar problemas com CRLF
 
@@ -69,7 +81,9 @@ Esta configuração local complementa essa garantia no checkout.
 
 ```bash
 # Instalar o Carton globalmente
-cpanm Carton
+# --notest evita que a suíte de testes de uma dependência transitiva do Carton
+# (ex.: Parse::PMFile) bloqueie a instalação por falhas do ambiente, não do módulo
+cpanm --notest Carton
 
 # Instalar as dependências nas versões exatas do snapshot (build reproduzível)
 carton install --deployment
@@ -78,8 +92,28 @@ carton install --deployment
 perl eng/setup.pl
 ```
 
+> **Windows nativo**: `carton install --deployment` reporta falha em
+> `Net::AMQP::RabbitMQ` — o módulo embute um cliente C (`rabbitmq-c`) que assume
+> `poll()`, ausente no MinGW/Winsock (só existe `WSAPoll()`, diferente). É uma
+> limitação real do pacote no Windows, não corrigível com `--notest`/`--force`. Os
+> demais módulos instalam normalmente, e `Net::AMQP::RabbitMQ` só é usado por
+> `lib/Stega/Worker/NotificationWorker.pm` e `eng/worker.pl` — nenhum outro módulo da
+> aplicação depende dele. Para desenvolvimento local no Windows, use o Caminho C
+> (Docker Compose) especificamente para o notification worker; o resto da aplicação
+> funciona normalmente com Perl nativo. Ver `TESTING.md` (Parte 0) para o roteiro
+> de validação que já contempla essa exceção.
+
 > Se precisar adicionar ou atualizar uma dependência, rode `carton install` (sem `--deployment`),
 > que atualiza o `cpanfile.snapshot`. Depois de testar, commite o snapshot atualizado.
+
+> **Sempre prefixe `carton exec`, mesmo que `perl`/`prove` "bare" pareça funcionar.**
+> Strawberry Perl (base do berrybrew) empacota alguns módulos comuns em
+> `perl/vendor/lib` — `Moo` é um deles. Rodar `prove`/`perl` sem `carton exec` pode
+> "funcionar" por coincidência, usando essa cópia global em vez da versão travada no
+> `cpanfile.snapshot` em `local/` — o que não se repete em Docker/CI, onde não há
+> esse bundle. Para conferir de onde um módulo está resolvendo:
+> `carton exec perl -MMoo -e "print $INC{'Moo.pm'}"` deve apontar para dentro de
+> `local/lib/perl5`, nunca para `.../vendor/lib`.
 
 ---
 
@@ -105,6 +139,10 @@ Edite o `.env` conforme seu ambiente. As variáveis obrigatórias são:
 | `KEYCLOAK_CLIENT_ID` | Client ID OIDC | `stega-web` |
 | `GITHUB_WEBHOOK_SECRET` | Segredo HMAC-SHA256 para verificar webhooks do GitHub. Se omitida, a verificação é desabilitada | *(omitida em dev local)* |
 | `TEST_JWT_SECRET` | Segredo para tokens HS256 de teste | `test_secret_apenas_para_desenvolvimento` |
+
+Todas essas variáveis são lidas em um único lugar, `lib/Stega/Config.pm` — nenhum
+outro arquivo do código-fonte contém `$ENV{...}` diretamente (ver ADR-021 no
+repositório central).
 
 ---
 
@@ -182,17 +220,13 @@ Não é necessário criá-la manualmente.
 ## 6. Aplicando as migrations
 
 ```bash
-# Linux / macOS
+# Mesmo comando em qualquer plataforma (ver ADR-013)
 carton exec perl eng/migrate.pl
-
-# Windows (PowerShell)
-carton exec perl .\eng\migrate.pl
-# ou usando o wrapper:
-.\eng\migrate.ps1
 ```
 
-As migrations estão em `migrations/` e seguem a convenção `NNN_descricao.sql`
-com a notação `-- N up` / `-- N down` do Mojo::Pg.
+As migrations estão em `migrations/`, uma pasta numerada por versão
+(`migrations/1/`, `migrations/2/`, ...), cada uma com `up.sql` e `down.sql`
+carregados via `Mojo::Pg::Migrations->from_dir` (ver ADR-016).
 
 Para popular o banco com dados de desenvolvimento:
 
@@ -275,8 +309,23 @@ my $token = make_jwt(role => 'agent', sub => 'meu-id', email => 'eu@dev.local');
 
 ## 9. Rodando os testes
 
+> **Windows/PowerShell**: encadeie `| Out-Host` em **qualquer** `carton exec perl ...`
+> ou `carton exec prove ...` que imprime para o terminal (ex.: `carton exec prove -lr
+> t\ | Out-Host`, `carton exec perl eng\migrate.pl | Out-Host`) — não é específico do
+> `prove`. Windows não tem um `exec()` real (só emulação por spawn+wait), o que afeta
+> a sincronia de qualquer saída de `carton exec`; sem `| Out-Host` o texto sai correto
+> mas atrasado, e no `prove` especificamente (que usa retorno de carro para a linha de
+> progresso) o mesmo problema aparece como corrupção visível. Rode também
+> `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` uma vez por sessão —
+> sem isso, `| Out-Host` corrige a sincronia mas introduz acentos corrompidos. Ver
+> `TESTING.md` para o roteiro completo com essa e outras notas específicas do Windows.
+
 ```bash
-# Pré-requisito: PostgreSQL em execução
+# Testes unitários de regra de negócio (t/unit/domain/) não precisam de banco —
+# rodam em milissegundos e podem ser executados a qualquer momento:
+carton exec prove -lr t/unit/
+
+# Os demais (API, integração) precisam de PostgreSQL em execução
 docker compose up -d postgres
 
 # Aplicar migrations no banco de teste (mesma instância, no ambiente local)
@@ -289,7 +338,13 @@ carton exec prove -lr t/
 carton exec prove -lv t/001_health.t
 
 # Gerar relatório de cobertura
-carton exec cover -test -report html
+# HARNESS_PERL_SWITCHES (não PERL5OPT) escopa o Devel::Cover aos processos que o
+# prove dispara; -ignore,local/ exclui as dependências do Carton da contagem.
+# Não use `cover -test`: esse atalho invoca `make test`, e este projeto (Carton,
+# sem Makefile) não tem esse alvo — o comando falha com
+# "make: No rule to make target 'test'".
+HARNESS_PERL_SWITCHES='-MDevel::Cover=-ignore,local/' carton exec prove -lr t/
+carton exec cover -report html
 open cover_db/coverage.html  # Linux/macOS
 start cover_db\coverage.html  # Windows
 ```
@@ -328,17 +383,10 @@ Todos os scripts residem em `eng/` conforme ADR-013.
 | `eng/setup.pl` | Verifica se o ambiente está configurado corretamente |
 | `eng/worker.pl` | Inicia o NotificationWorker (RabbitMQ consumer) |
 
-Wrappers PowerShell (Windows): `eng/*.ps1` com o mesmo nome.
-
-Execução:
+Sem wrapper `.ps1` (ver ADR-013) — o mesmo comando funciona em qualquer plataforma:
 
 ```bash
-# Linux / macOS
 carton exec perl eng/migrate.pl
-
-# Windows
-carton exec perl .\eng\migrate.pl
-.\eng\migrate.ps1
 ```
 
 ---
@@ -346,10 +394,18 @@ carton exec perl .\eng\migrate.pl
 ## 12. Convenções de código
 
 - **Perl mínimo**: `5.042` (declarado no `cpanfile`)
-- **OO**: Moo + Moo::Role para todos os modelos de domínio (`lib/Stega/Model/`)
-- **Controllers**: `Mojo::Base 'Mojolicious::Controller'` — sem lógica de negócio
+- **OO**: Moo para todos os modelos de domínio (`lib/Stega/Model/`); `Moo::Role`
+  usado como contrato de Repository (`lib/Stega/Repository/`) — ver ADR-006 e ADR-020
+- **Autorização** (quem pode agir): classes Policy puras em `lib/Stega/Domain/`
+  (ex.: `TicketPolicy`) — sem `Mojo::Base`, sem `Mojo::Pg` — ver ADR-011
+- **Validação de negócio + execução** (a ação é válida?): classes Domain com um
+  Repository injetado (ex.: `Domain::Product` + `Repository::Pg::Product`) — ver
+  ADR-020. Fakes de Repository ficam em `t/lib/Stega/Test/Repository/`, nunca em `lib/`
+- **Controllers**: `Mojo::Base 'Mojolicious::Controller'` — sem lógica de negócio,
+  orquestram Policy + Domain
 - **Sem lógica em templates**: templates apenas exibem — lógica fica nos controllers
 - **JSONB**: campos definidos em ADR-017 — `custom_fields`, `metadata`, `payload`, `settings`
-- **Migrations**: arquivos `NNN_descricao.sql` em ordem lexicográfica via `Mojo::Pg`
+- **Migrations**: `migrations/N/up.sql` + `migrations/N/down.sql` via
+  `Mojo::Pg::Migrations->from_dir` (ADR-016)
 - **Testes**: `Test::Mojo` — teste de rota, não de implementação interna
 - **Estilo**: sem comentários óbvios; `say` para saída de scripts de engenharia

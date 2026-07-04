@@ -1,5 +1,7 @@
-use strict;
-use warnings;
+use v5.42;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+$| = 1;
 use Test::More;
 use Test::Mojo;
 

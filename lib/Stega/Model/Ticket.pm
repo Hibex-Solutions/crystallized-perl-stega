@@ -1,4 +1,6 @@
 package Stega::Model::Ticket;
+use v5.42;
+use utf8;
 use Moo;
 use namespace::autoclean;
 

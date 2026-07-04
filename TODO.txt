@@ -1,7 +1,250 @@
-- Porque precisamos ter eng/script.pl e um wrapper eng/script.ps1 que chama eng/script.pl? Usar como padrão `perl eng/script.pl` não parece uma boa ideia já que temos o Perl garantido sempre?
-- Mojo::Pg::Migrations 5.0 já tem um padrão que usa um diretório de migração ao invés de um único arquivo. (from_dir). Vale revisar se estamos usando as últimas versões das bibliotecas Mojolicious.
-- Vale usar `use Modern::Perl '2025';` por padrão nos scripts? (https://metacpan.org/pod/Modern::Perl). Talvez usar `use 5.042` com `use warnings` e `use strict` ou `use autodie` ou ainda `use utf8`. Tivemos problemas com codificação de caracteres, e precisamos avaliar se usar utf8 como padrão e definir um padrão de cabeçalho mínimo para qualquer script perl é uma boa opção, pois atende ao que fazemos na maioria das aplicações que queremos abordar, e quando alguém quiser diferente seja explícito no script perl em questão, mas o padrão ser bem definido é bom pra nós. Então qual a melhor opção? Usar um `use Modern::Perl x`, ou um conjunto bem definido de cabeçalhos com pragmas?
-- Qual repositório oficial do berrybrew? https://github.com/dnmfarrell/berrybrew ou https://github.com/stevieb9/berrybrew/?. Precisamos documentar melhor a instalação no Windows. Li em algum lugar que parece que há uma questão histórica de que https://github.com/dnmfarrell/berrybrew nasceu primeiro depois o mantenedor mudou e reescreveu tudo em https://github.com/stevieb9 e este se tornou o oficial. E que a instalação é recomendada via clonar o repositório e executar um script de configuração primeiro. Então precisamos definir qual é o repositório válido e instruir corretamente usuários Windows a fazer a instalação eficazmente.
-- cpanfile tem questões de versões parciais? (>=, ~=, etc.) Por exemplo `requires 'Mojolicious', '9.0';` baixa `Mojolicious 9.46` ou exatamente `Mojolicious 9.0`? (https://metacpan.org/dist/Mojolicious). E `requires 'Minion';` baixa qual versão?
-- Usar Mojolicious::Plugin::OpenAPI só, ou usar outro como Mojolicious::Plugin::OIDC, ou Mojolicious::Plugin::OAuth2? Ou usá-los em conjunto? Qual a melhor opção para usar cok Keycloak
-- Nós estamos fazendo testes que na maioria (se não todos) acessam o banco de dados. Então são testes de integração. Quero ter testes unitários puros para validar as regras de negócio, se possível com mocks para simular os serviços dependentes. É possível? Ainda que tenhamos que modificar como algumas coisas são implementadas.
+Todos os pontos abaixo foram decididos no repositório central (crystallized-perl) e
+já refletidos nesta aplicação. Mantido como histórico das perguntas originais — a
+resposta de cada uma está na ADR referenciada.
+
+- [RESOLVIDO — ADR-013] Porque precisamos ter eng/script.pl e um wrapper eng/script.ps1
+  que chama eng/script.pl? Usar como padrão `perl eng/script.pl` não parece uma boa
+  ideia já que temos o Perl garantido sempre?
+  → Wrapper .ps1 removido. `carton exec perl eng/script.pl` é o único comando, igual
+    em qualquer plataforma. O wrapper antigo nem sequer usava `carton exec` (bug real).
+
+- [RESOLVIDO — ADR-016, revisado 2026-07-02] Mojo::Pg::Migrations 5.0 já tem um padrão
+  que usa um diretório de migração ao invés de um único arquivo (from_dir). Vale
+  revisar se estamos usando as últimas versões das bibliotecas Mojolicious.
+  → Adotado `from_dir`. Decisão original (manter o loader customizado via
+    `from_string`) foi revertida: usar o mecanismo que a própria biblioteca oferece é
+    mais seguro do que manter um utilitário próprio equivalente. `migrations/N/up.sql`
+    e `migrations/N/down.sql` substituíram os arquivos únicos `NNN_descricao.sql`; a
+    descrição que estava no nome do arquivo agora é um comentário na primeira linha
+    de cada `up.sql`/`down.sql`.
+
+- [RESOLVIDO — ADR-019, nova] Vale usar `use Modern::Perl '2025';` por padrão nos
+  scripts? Ou `use 5.042` com `use warnings`/`use strict`/`use autodie`/`use utf8`?
+  Tivemos problemas de codificação de caracteres.
+  → Padrão definido: `use v5.42; use utf8;` (mais `use open ':std', ':encoding(UTF-8)';`
+    em scripts que imprimem para o terminal). `use v5.42` já habilita strict/warnings.
+    Sem `Modern::Perl` (dependência externa desnecessária). `autodie` fica opcional,
+    não é padrão. Aplicado em todo `eng/*.pl`, `lib/**/Model/*.pm`, `lib/**/Job/*.pm`,
+    `lib/Stega/Worker/*.pm`, `script/stega` e `t/**/*.t`. Controllers e `lib/Stega.pm`
+    não precisaram de mudança — `Mojo::Base ... -strict` já aplica utf8 automaticamente.
+
+- [RESOLVIDO — ADR-014] Qual repositório oficial do berrybrew — dnmfarrell ou stevieb9?
+  → `stevieb9/berrybrew` é o oficial e ativamente mantido (o próprio README do
+    repositório original aponta para lá). Instalação: `berrybrewInstaller.exe` ou
+    clone + `bin\berrybrew.exe config` (como Administrador). Atualizado em
+    DEVELOPMENT.md e README.md.
+
+- [RESOLVIDO — ADR-005] cpanfile tem questões de versões parciais (>=, ~=, etc.)?
+  `requires 'Mojolicious', '9.0';` baixa exatamente 9.0 ou a mais recente?
+  → Número isolado = versão mínima (`>= 9.0`); o `carton install` resolve para a mais
+    recente compatível, e é o `cpanfile.snapshot` (não o `cpanfile`) que fixa a versão
+    exata. Sintaxe de intervalo (`>= X, < Y`) usada quando necessário — já é o padrão
+    usado aqui para travar `Mojolicious::Plugin::OpenAPI`/`JSON::Validator` abaixo da
+    versão com a dependência XS incompatível com Perl 5.42.
+
+- [RESOLVIDO — ADR-009] Usar Mojolicious::Plugin::OpenAPI só, ou também
+  Mojolicious::Plugin::OIDC/OAuth2 para o Keycloak?
+  → Mantido o fluxo manual (redirect + troca de código + validação via JWKS com
+    Crypt::JWT) já implementado em Stega::Controller::Auth. Os plugins foram avaliados
+    e rejeitados: a API já precisa de validação local via JWKS de qualquer forma (só
+    recebe `Authorization: Bearer`), e o fluxo web tem ~40 linhas auditáveis que já
+    resolvem o caso conhecido do `id_token` sem `realm_access.roles`.
+
+- [RESOLVIDO — ADR-011 + ADR-020] Testes majoritariamente de integração (acessam
+  banco). Queria testes unitários puros para regras de negócio, com mocks. Item
+  aprofundado em 2026-07-02: queria isso para toda funcionalidade, não só permissão —
+  ex. "posso criar dois produtos com o mesmo nome/slug?" validado por uma classe de
+  domínio que usa um mecanismo abstrato de persistência, mockável em teste.
+  → Duas camadas complementares, não uma só:
+    1. **Policy** (ADR-011): autorização — `Stega::Domain::TicketPolicy`, já cobre as
+       regras de `BUSINESS.md` (quem pode fazer o quê), usada por rotas web e API.
+    2. **Domain + Repository** (ADR-020, novo): validação de negócio + execução — uma
+       classe por entidade (`Stega::Domain::Product`) recebe um Repository injetado
+       (`Stega::Repository::Product`, contrato via `Moo::Role`; implementação real
+       `Stega::Repository::Pg::Product`). Em teste, o Repository é trocado por uma
+       classe Fake (`Stega::Test::Repository::Product`, em `t/lib/` — não em `lib/`,
+       seguindo a convenção Perl de código só-de-teste) em vez de `Test::MockObject`:
+       a regra de duplicidade exige estado real entre chamadas (inserir → buscar),
+       que `Test::MockObject` exigiria simular manualmente com o mesmo resultado.
+       `Test::MockObject` continua reservado para interações pontuais com serviços
+       externos (RabbitMQ, HTTP), como já previsto desde ADR-011.
+    Piloto implementado em `Product` (`lib/Stega/Domain/Product.pm`,
+    `lib/Stega/Repository/{Product.pm,Pg/Product.pm}`,
+    `t/lib/Stega/Test/Repository/Product.pm`, `t/unit/domain/product.t`) — resolveu de
+    quebra um bug real: `api_create` de produto não tratava violação da constraint
+    `UNIQUE` de slug (estourava 500 em vez de 422) e não validava nome duplicado.
+
+    [RESOLVIDO 2026-07-03] Replicado para `Ticket` e `Comment`, com um ajuste de
+    escopo em relação ao piloto: para essas duas entidades o Repository passou a
+    cobrir todo o acesso a dados (leituras e escritas), não só as escritas
+    validadas — `Stega::Controller::Ticket`/`Comment` não chamam `$c->pg->db`
+    diretamente em nenhum método (ver "Revisão 2026-07-03" na ADR-020). Validado
+    via testes automatizados (71 testes, 12 arquivos, `Result: PASS` contra
+    Postgres real em Docker) e via `curl` contra a aplicação rodando. Dois bugs
+    reais corrigidos e confirmados por `curl`: ticket podia ser criado para
+    produto inativo/inexistente (BUSINESS.md documentava a regra, nada a impunha
+    — agora `422 Produto inválido ou inativo`, antes seria 500 por violação de
+    FK); comentário em `ticket_id` inexistente estourava 500 por violação de
+    `FOREIGN KEY` (agora `404 Ticket não encontrado`). Um terceiro item
+    (`valid_priority`, testada desde a ADR-011 mas nunca chamada por nenhum
+    Controller) só era um bug real na rota **web** (`Controller::Ticket::create`,
+    formulário HTML sem validação automática) — a rota de API já estava protegida
+    pelo enum `priority` no schema OpenAPI (`api/stega.yaml`), validado
+    automaticamente pelo `Mojolicious::Plugin::OpenAPI` antes do Controller ser
+    chamado; confirmado via `curl` que um valor fora da lista já devolvia 400
+    mesmo antes desta mudança. `valid_priority` passou a ser chamada em
+    `create`/`api_create`/`api_update` mesmo assim, por consistência com
+    `valid_status` — mas só corrige um bug de fato na rota web.
+
+    [RESOLVIDO 2026-07-03] Retrofit do `Product`: `Stega::Repository::Product`
+    ganhou `list_all`, `find` e `update_fields`; `Stega::Controller::Product`
+    não chama mais `$c->pg->db` diretamente em nenhum método (`index`, `update`
+    e `api_list` migrados). `list_active` foi ampliado de `id, name` para
+    `SELECT *` — passa a servir tanto o dropdown de novo ticket quanto
+    `api_list` com um único método. Nenhum método de `Domain::Product` novo:
+    `index`/`api_list` são leitura sem regra, `update` é escrita sem validação
+    de estado — mesma linha de corte já aplicada a `Ticket::archive` e à edição
+    de `Comment`. As três entidades (`Product`, `Ticket`, `Comment`) ficam
+    coerentes entre si: Repository cobre 100% do acesso a dados, Domain só onde
+    há validação de estado.
+
+    [RESOLVIDO 2026-07-03] `Repository::User` + retrofit de `Auth`/`Dashboard`:
+    ao revisar o que ainda restava, `Auth.pm` (6 queries), `User.pm` (3) e
+    `Dashboard.pm` (2) ainda tinham SQL direto. Achado real ao ler `Auth.pm`:
+    havia duas implementações DIVERGENTES do mesmo upsert de usuário a partir do
+    JWT — `require_jwt` (toda requisição de API) fazia um `INSERT ... ON
+    CONFLICT DO UPDATE` atômico mas descartava se era usuário novo; `_sync_user`
+    (só no login web) fazia `SELECT` + `UPDATE`/`INSERT` separados, não-atômico,
+    sujeito a corrida em dois primeiros logins concorrentes do mesmo usuário —
+    só para computar `is_first_login` (decide o e-mail de boas-vindas).
+    Unificado em `Stega::Repository::Pg::User::upsert_from_keycloak`: um único
+    `INSERT ... ON CONFLICT DO UPDATE ... RETURNING ..., (xmax = 0) AS
+    is_first_login` — o idioma padrão do Postgres para saber, dentro do próprio
+    `RETURNING`, se a linha foi inserida ou atualizada na mesma instrução.
+    Validado direto via `psql`: duas chamadas com o mesmo `keycloak_id`
+    devolvem `is_first_login = t` na primeira e `f` na segunda, mesmo `id` nas
+    duas. `_sync_user` removida. `Dashboard.pm` migrou suas duas queries
+    (visão customer e visão agent/admin com ordenação por prioridade) para
+    `Stega::Repository::Pg::Ticket::list_for_dashboard` — SQL idêntico, sem
+    mudança de comportamento, validado direto via `psql` contra o banco do
+    seed (rota depende de sessão web, sem cobertura automatizada — gap
+    pré-existente, não introduzido agora). Sem `Domain::User`: sincronizar um
+    JWT já validado não tem regra de estado a proteger. Sem Fake de
+    `Repository::User`: nenhum teste a consome ainda. Restam com SQL direto só
+    `Health` (checagem de conectividade, não é entidade) e `Webhook` (não toca
+    banco) — nenhum dos dois é candidato ao padrão.
+
+---
+
+Backlog (ideias levantadas na validação completa de 2026-07-03, não urgentes):
+
+- [BACKLOG] Badge visual com o tipo do evento no histórico do ticket
+  (`templates/tickets/show.html.ep`) — além da mensagem legível já existente
+  ("Ticket criado...", "Status: x → y...", "Responsável: ..."), um badge com o tipo
+  cru (`ticket.created`, `status.changed`, `assigned`) deixaria a timeline mais
+  escaneável visualmente. O padrão Domain+Repository já foi replicado para
+  `Ticket`/`Comment` (2026-07-03) — condição que este item aguardava para ser
+  retomado; segue como backlog não-urgente, agora desbloqueado.
+
+---
+
+Pendências levantadas em 2026-07-03 (registradas, não implementadas):
+
+- [RESOLVIDO 2026-07-03] Configuração centralizada em vez de `$ENV{...}`
+  espalhado. Ver ADR-021 (repositório central) para a decisão completa.
+  → Implementado `lib/Stega/Config.pm` (`load()`), único arquivo que contém o
+  nome de cada variável de ambiente. `lib/Stega.pm` popula `$self->config` em
+  `startup()`; Controllers leem via `$c->app->config`; `eng/migrate.pl`,
+  `eng/seed.pl` e `Stega::Worker::NotificationWorker` (sem instância de app)
+  chamam `Stega::Config::load()` diretamente. Onde o comportamento já divergia
+  entre consumidores por razão real (`KEYCLOAK_URL`: `_decode_jwt_token` morre
+  se ausente, rotas de redirect web caem para `localhost`), o valor no config
+  fica bruto e cada consumidor mantém sua própria decisão — só
+  `keycloak.frontend_url` computa a cadeia de fallback já repetida
+  identicamente em `login`/`logout`/`change_password`. `require_jwt` já tinha
+  sido removida antes (item anterior); `eng/setup.pl` não foi tocado (checagem
+  informacional que já sempre passava, não consumo real de config). Validado
+  via suíte completa (75 testes, `Result: PASS`) e via `curl`/logs contra a
+  aplicação real em Docker: `/healthz`, redirect de `/login` para o Keycloak
+  com `frontend_url` resolvido corretamente, e `NotificationWorker` conectando
+  ao RabbitMQ via `Stega::Config` sem erro.
+
+- [PENDENTE] Colunas JSONB (`settings` de Product, `custom_fields` de Ticket,
+  `metadata` de Comment, `payload` de Event) retornam como string JSON crua na
+  API em vez de objeto aninhado — comportamento confirmado em toda a aplicação
+  ao validar o retrofit do Product (ver acima). `Repository::Pg::Ticket::
+  list_events` já contorna isso manualmente com `decode_json` línea a linha
+  porque não sabia da alternativa nativa.
+  → Pesquisado: `Mojo::Pg::Results` tem o método `expand()`, que decodifica
+  automaticamente todo campo `json`/`jsonb` do resultado para uma estrutura
+  Perl nativa — basta encadear `->expand->hash` ou `->expand->hashes` em vez de
+  `->hash`/`->hashes` puro, sem precisar de cast `::json` explícito na query
+  nem de `decode_json` manual depois. Referência:
+  Mojo::Pg::Results (https://docs.mojolicious.org/Mojo/Pg/Results).
+  Se adotado, o `decode_json` manual em `list_events` também seria removido
+  (fica redundante com `expand()`). Não implementado ainda — decisão de
+  aplicar em quais métodos (provavelmente todos os que retornam `settings`/
+  `custom_fields`/`metadata`/`payload`) fica para quando isso for priorizado.
+
+- [RESOLVIDO 2026-07-03 — achado relacionado, correção de trabalho anterior] Ao
+  investigar o item de configuração acima, descobri que a unificação do upsert
+  de usuário via JWT (2026-07-03, ver ADR-020) tinha ficado **incompleta**:
+  `Stega::Controller::Auth::require_jwt` — que eu já tinha atualizado para usar
+  `Repository::Pg::User::upsert_from_keycloak` — era **código morto**, nunca
+  referenciado por nenhuma rota. O caminho realmente usado por toda requisição
+  de API autenticada era o handler `security => { bearerAuth => ... }` dentro
+  de `_setup_openapi` em `lib/Stega.pm`, que ainda tinha sua **própria** cópia
+  inline do upsert original (`INSERT ... ON CONFLICT ... RETURNING id`, sem a
+  correção `xmax = 0`/`is_first_login`). Ou seja: eram três implementações
+  divergentes, não duas — e a que eu tinha deixado sem tocar era a que roda de
+  verdade em produção.
+  → Corrigido: `bearerAuth` agora chama `Repository::Pg::User::
+  upsert_from_keycloak`; `require_jwt` removida (código morto); comentário em
+  `Repository::Pg::User.pm` corrigido para apontar `callback` e `bearerAuth`
+  como os dois consumidores reais. Validado via suíte completa (75 testes,
+  `Result: PASS` — toda requisição autenticada de todo teste passa por este
+  handler) contra Postgres real em Docker, do zero.
+
+- [PENDENTE] `TESTING.md` precisa ser reescrito para ser um guia enxuto de
+  teste guiado da aplicação, não um log histórico de validação da
+  implementação Domain+Repository/Ticket/Comment. Hoje o arquivo mistura dois
+  propósitos diferentes:
+  1. Validar que a implementação de uma rodada específica funcionou (o que
+     interessa a quem está desenvolvendo a Stega ou o stack central).
+  2. Guiar alguém que baixou o repositório e quer rodar a aplicação para
+     entender o funcionamento e testar as funcionalidades (o propósito real
+     de um `TESTING.md`).
+  Problemas concretos a corrigir:
+  - **Toda a "Parte 0 — Validação local rápida"** (seções 0.0 a 0.7) é sobre
+    validar Perl/Carton local — não é necessária para o propósito de teste
+    guiado, que pode assumir só Docker (única forma garantida de bater com a
+    aplicação final "de produção", sem depender de berrybrew/perlbrew, versão
+    de Perl local, etc.). Boa parte já está duplicada em `DEVELOPMENT.md`
+    (seções 2, 3 e 9 já cobrem instalação de Perl/Carton e como rodar testes
+    localmente) — o que sobrar de valor único (se houver) deveria migrar para
+    lá, não ficar em `TESTING.md`.
+  - Vários trechos narram problemas encontrados e resolvidos durante o
+    desenvolvimento em vez de só instruir: o aviso sobre versões antigas do
+    guia terem saída fora de ordem no Windows (parágrafo "Se você já rodou a
+    Parte 0 antes de 2026-07-02..."), a explicação longa de por que
+    `carton exec` precisa de `| Out-Host` no Windows, a nota sobre
+    `Net::AMQP::RabbitMQ` não buildar no Windows (relevante para quem
+    desenvolve localmente, não para quem só quer rodar via Docker). Nenhum
+    desse conteúdo ajuda alguém seguindo o guia via Docker a testar a
+    aplicação — é contexto de bastidor da nossa implementação, não instrução
+    de uso.
+  - Nem tudo que parece "narrativa de bug" deve sumir: a nota da seção 9 sobre
+    tickets de teste não terem o evento `ticket.created` no histórico
+    (`t/060_business_rules.t` insere direto via SQL) evita que quem estiver
+    testando a UI ache que encontrou um bug — isso é relevante para o
+    propósito do guia e deveria ficar, só que reescrito de forma mais direta
+    (o fato + a explicação mínima, sem o histórico de quando isso foi
+    percebido).
+  Direção proposta (a confirmar na implementação): `TESTING.md` foca só no
+  equivalente à atual "Parte 1 — Validação completa via Docker Compose"
+  (build, subir infraestrutura, migrations/seed, suíte automatizada, subir a
+  app, configurar usuários no Keycloak, roteiro de validação via `curl`,
+  roteiro de validação de UI por perfil) — comandos diretos, resultado
+  esperado, sem explicar por que cada coisa funciona ou o que já deu errado
+  antes. `DEVELOPMENT.md` continua sendo o lugar para quem quer desenvolver
+  localmente com Perl instalado.

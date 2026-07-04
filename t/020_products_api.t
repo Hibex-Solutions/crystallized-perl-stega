@@ -1,5 +1,7 @@
-use strict;
-use warnings;
+use v5.42;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+$| = 1;
 use Test::More;
 use Test::Mojo;
 use lib 't/lib';
@@ -35,6 +37,8 @@ subtest 'POST /api/v1/products — customer não pode criar' => sub {
     })->status_is(403);
 };
 
+my $created_id;
+
 subtest 'POST /api/v1/products — admin pode criar' => sub {
     my $slug = 'produto-api-test-' . time();
     set_auth($admin_token);
@@ -46,6 +50,42 @@ subtest 'POST /api/v1/products — admin pode criar' => sub {
     })->status_is(201)
       ->json_has('/data/id')
       ->json_is('/data/slug', $slug);
+
+    $created_id = $t->tx->res->json->{data}{id};
+};
+
+subtest 'PATCH /api/v1/products/:id — customer não pode atualizar' => sub {
+    set_auth($customer_token);
+    $t->patch_ok("/api/v1/products/$created_id" => json => { name => 'Tentativa Proibida' })
+      ->status_is(403);
+};
+
+subtest 'PATCH /api/v1/products/:id — admin atualiza campos (Stega::Repository::Pg::Product::update_fields)' => sub {
+    set_auth($admin_token);
+    $t->patch_ok("/api/v1/products/$created_id" => json => {
+        name       => 'Produto Via API Atualizado',
+        is_active  => 0,
+        settings   => { sla_hours => { critical => 1, high => 2, medium => 6, low => 24 } },
+    })->status_is(200)
+      ->json_is('/data/name', 'Produto Via API Atualizado')
+      ->json_is('/data/is_active', 0);
+
+    # settings (JSONB) volta como string JSON crua nesta API, não como objeto
+    # aninhado — mesmo comportamento de custom_fields/metadata em Ticket/Comment,
+    # anterior a este retrofit. Confere o conteúdo pelo texto, não por JSON Pointer.
+    like $t->tx->res->json->{data}{settings}, qr/"critical":\s*1\b/, 'settings persistido (cast ::jsonb aplicado)';
+};
+
+subtest 'PATCH /api/v1/products/:id — sem campos retorna 400' => sub {
+    set_auth($admin_token);
+    $t->patch_ok("/api/v1/products/$created_id" => json => {})
+      ->status_is(400);
+};
+
+subtest 'PATCH /api/v1/products/:id — id inexistente retorna 404' => sub {
+    set_auth($admin_token);
+    $t->patch_ok('/api/v1/products/999999' => json => { name => 'Não existe' })
+      ->status_is(404);
 };
 
 done_testing;

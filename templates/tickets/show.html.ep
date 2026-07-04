@@ -164,8 +164,12 @@
               <strong><%= $ev->{payload}{new_status} // '?' %></strong>
               por <%= $ev->{actor_name} // '?' %></span>
             % } elsif ($ev->{type} eq 'assigned') {
-            % my $to = $ev->{payload}{assigned_to_name} // $ev->{payload}{assigned_to} // '—';
-            <span>Responsável: <strong><%= $to %></strong> por <%= $ev->{actor_name} // '?' %></span>
+            %   if ($ev->{payload}{assigned_to}) {
+            <span>Responsável: <strong><%= $ev->{payload}{assigned_to_name} // '?' %></strong>
+              por <%= $ev->{actor_name} // '?' %></span>
+            %   } else {
+            <span>Responsável removido por <%= $ev->{actor_name} // '?' %></span>
+            %   }
             % } else {
             <span><em><%= $ev->{type} %></em> por <%= $ev->{actor_name} // '?' %></span>
             % }

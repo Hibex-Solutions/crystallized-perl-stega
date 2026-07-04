@@ -1,6 +1,6 @@
 package Stega::Job::CheckSlaBreaches;
-use strict;
-use warnings;
+use v5.42;
+use utf8;
 
 sub run {
     my ($job) = @_;

@@ -1,6 +1,6 @@
 package Stega::Job::SendWelcomeNotification;
-use strict;
-use warnings;
+use v5.42;
+use utf8;
 
 sub run {
     my ($job, $user_id) = @_;
@@ -27,15 +27,16 @@ sub _publish_notification {
     require Net::AMQP::RabbitMQ;
     require JSON::PP;
 
+    my $rabbitmq = $app->config->{rabbitmq};
     my $mq = Net::AMQP::RabbitMQ->new;
     eval {
         $mq->connect(
-            $ENV{RABBITMQ_HOST} // 'localhost',
+            $rabbitmq->{host},
             {
-                user     => $ENV{RABBITMQ_USER}     // 'stega',
-                password => $ENV{RABBITMQ_PASSWORD} // 'dev_password',
-                vhost    => $ENV{RABBITMQ_VHOST}    // '/',
-                port     => $ENV{RABBITMQ_PORT}     // 5672,
+                user     => $rabbitmq->{user},
+                password => $rabbitmq->{password},
+                vhost    => $rabbitmq->{vhost},
+                port     => $rabbitmq->{port},
             }
         );
         $mq->channel_open(1);

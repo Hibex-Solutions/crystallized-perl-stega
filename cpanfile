@@ -9,8 +9,8 @@ requires 'Mojolicious',                  '9.0';
 requires 'Mojolicious::Plugin::OpenAPI', '>= 5.11, < 5.12';
 requires 'JSON::Validator',              '>= 5.13, < 5.16';
 
-# Banco de dados
-requires 'Mojo::Pg', '4.0';
+# Banco de dados — 4.22 é o mínimo que introduziu Migrations->from_dir (ADR-016)
+requires 'Mojo::Pg', '4.22';
 
 # Sistema de OO
 requires 'Moo',                  '2.0';

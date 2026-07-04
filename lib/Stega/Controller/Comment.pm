@@ -1,7 +1,9 @@
 package Stega::Controller::Comment;
 use Mojo::Base 'Mojolicious::Controller', -strict;
 
-use Mojo::JSON qw(encode_json);
+use Stega::Domain::TicketPolicy;
+use Stega::Domain::Comment;
+use Stega::Repository::Pg::Comment;
 
 sub web_create {
     my $c = shift;
@@ -12,20 +14,24 @@ sub web_create {
     my $user        = $c->stash('current_user');
     my $role        = $user->{role};
 
-    return $c->render(text => 'Comentário não pode estar vazio', status => 400) unless $body;
+    $is_internal = 0 unless Stega::Domain::TicketPolicy->can_create_internal_comment($role);
 
-    # Apenas agentes e admins podem criar comentários internos
-    $is_internal = 0 if $role eq 'customer';
-
-    $c->pg->db->query(
-        'INSERT INTO comments (ticket_id, author_id, body, is_internal)
-         VALUES ($1, $2, $3, $4)',
-        $ticket_id, $user->{id}, $body, $is_internal ? 1 : 0
+    my $domain = Stega::Domain::Comment->new(
+        repository => Stega::Repository::Pg::Comment->new(db => $c->pg->db),
     );
 
-    $c->pg->db->query(
-        'UPDATE tickets SET updated_at = NOW() WHERE id = $1', $ticket_id
-    );
+    eval {
+        $domain->create(
+            ticket_id   => $ticket_id,
+            author_id   => $user->{id},
+            body        => $body,
+            is_internal => $is_internal,
+        );
+    };
+    if ($@) {
+        return $c->reply->not_found if $@ =~ /Ticket não encontrado/;
+        return $c->render(text => $@, status => 400);
+    }
 
     $c->redirect_to("/tickets/$ticket_id");
 }
@@ -36,11 +42,11 @@ sub api_list {
     my $ticket_id = $c->param('id');
     my $role      = ($c->stash('current_user') // {})->{role} // 'customer';
 
-    my $sql = $role eq 'customer'
-        ? 'SELECT c.*, u.display_name AS author_name FROM comments c JOIN users u ON u.id = c.author_id WHERE c.ticket_id = $1 AND c.is_internal = false ORDER BY c.created_at'
-        : 'SELECT c.*, u.display_name AS author_name FROM comments c JOIN users u ON u.id = c.author_id WHERE c.ticket_id = $1 ORDER BY c.created_at';
+    my $comments = Stega::Repository::Pg::Comment->new(db => $c->pg->db)->list(
+        ticket_id        => $ticket_id,
+        include_internal => Stega::Domain::TicketPolicy->can_view_internal_comments($role),
+    );
 
-    my $comments = $c->pg->db->query($sql, $ticket_id)->hashes;
     $c->render(json => { data => $comments });
 }
 
@@ -52,24 +58,26 @@ sub api_create {
     my $user      = $c->stash('current_user');
     my $role      = $user->{role} // 'customer';
 
-    my $body        = $json->{body}        // '';
     my $is_internal = $json->{is_internal} // 0;
-    my $metadata    = $json->{metadata};
+    $is_internal = 0 unless Stega::Domain::TicketPolicy->can_create_internal_comment($role);
 
-    return $c->render(json => { error => 'body é obrigatório' }, status => 422) unless $body;
+    my $domain = Stega::Domain::Comment->new(
+        repository => Stega::Repository::Pg::Comment->new(db => $c->pg->db),
+    );
 
-    $is_internal = 0 if $role eq 'customer';
-
-    my $meta_json = $metadata ? encode_json($metadata) : undef;
-
-    my $comment = $c->pg->db->query(
-        'INSERT INTO comments (ticket_id, author_id, body, is_internal, metadata)
-         VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *',
-        $ticket_id, $user->{id},
-        $body, $is_internal ? 1 : 0, $meta_json
-    )->hash;
-
-    $c->pg->db->query('UPDATE tickets SET updated_at = NOW() WHERE id = $1', $ticket_id);
+    my $comment = eval {
+        $domain->create(
+            ticket_id   => $ticket_id,
+            author_id   => $user->{id},
+            body        => $json->{body},
+            is_internal => $is_internal,
+            metadata    => $json->{metadata},
+        );
+    };
+    if ($@) {
+        my $status = $@ =~ /Ticket não encontrado/ ? 404 : 422;
+        return $c->render(json => { error => $@ }, status => $status);
+    }
 
     $c->render(json => { data => $comment }, status => 201);
 }
@@ -82,23 +90,21 @@ sub api_update {
     my $json      = $c->req->json // {};
     my $user      = $c->stash('current_user');
 
-    my $comment = $c->pg->db->query(
-        'SELECT * FROM comments WHERE id = $1 AND ticket_id = $2', $id, $ticket_id
-    )->hash;
+    my $repo    = Stega::Repository::Pg::Comment->new(db => $c->pg->db);
+    my $comment = $repo->find($id, $ticket_id);
 
     return $c->render(json => { error => 'Não encontrado' }, status => 404) unless $comment;
 
-    unless ($comment->{author_id} eq ($user->{id} // '') || ($user->{role} // '') eq 'admin') {
-        return $c->render(json => { error => 'Sem permissão' }, status => 403);
-    }
+    return $c->render(json => { error => 'Sem permissão' }, status => 403)
+        unless Stega::Domain::TicketPolicy->can_edit_comment(
+            role      => $user->{role},
+            author_id => $comment->{author_id},
+            user_id   => $user->{id},
+        );
 
-    my $body = $json->{body} // $comment->{body};
-    $c->pg->db->query(
-        'UPDATE comments SET body = $1, updated_at = NOW() WHERE id = $2',
-        $body, $id
-    );
+    my $body    = $json->{body} // $comment->{body};
+    my $updated = $repo->update_body(id => $id, body => $body);
 
-    my $updated = $c->pg->db->query('SELECT * FROM comments WHERE id = $1', $id)->hash;
     $c->render(json => { data => $updated });
 }
 

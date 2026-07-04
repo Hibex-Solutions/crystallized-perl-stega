@@ -1,17 +1,15 @@
 #!/usr/bin/env perl
 # eng/seed.pl — popula o banco com dados de desenvolvimento
-use strict;
-use warnings;
+use v5.42;
 use utf8;
-use feature 'say';
+use open ':std', ':encoding(UTF-8)';
+$| = 1;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 use Mojo::Pg;
+use Stega::Config;
 
-my $dsn = $ENV{POSTGRESQL_URL}
-    // 'postgresql://postgres:postgres_dev@localhost:5432/stega';
-
-my $pg = Mojo::Pg->new($dsn);
+my $pg = Mojo::Pg->new(Stega::Config::load()->{postgresql}{url});
 my $db = $pg->db;
 
 my $count = $db->query('SELECT COUNT(*) AS n FROM products')->hash->{n} // 0;

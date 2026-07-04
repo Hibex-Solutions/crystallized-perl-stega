@@ -6,15 +6,18 @@ use Crypt::JWT qw(decode_jwt);
 
 my $jwks_cache;    # cache por processo — cada worker Hypnotoad carrega uma vez
 
+use Stega::Config;
 use Stega::Job::SendWelcomeNotification;
 use Stega::Job::CheckSlaBreaches;
 use Stega::Job::ProcessWebhookPayload;
 use Stega::Job::GenerateActivityReport;
+use Stega::Repository::Pg::User;
 
 sub startup {
     my $self = shift;
 
-    $self->secrets([ $ENV{STEGA_SECRET} // 'dev_secret_mude_em_producao' ]);
+    $self->config(Stega::Config::load());
+    $self->secrets([ $self->config->{stega_secret} ]);
 
     $self->_setup_database;
     $self->_setup_minion;
@@ -26,10 +29,7 @@ sub startup {
 sub _setup_database {
     my $self = shift;
 
-    my $dsn = $ENV{POSTGRESQL_URL}
-        // 'postgresql://postgres:postgres_dev@localhost:5432/stega';
-
-    my $pg = Mojo::Pg->new($dsn);
+    my $pg = Mojo::Pg->new($self->config->{postgresql}{url});
     $pg->options->{pg_enable_utf8} = -1;    # auto: usa encoding do servidor (UTF-8)
     $self->helper(pg => sub { $pg });
 }
@@ -62,7 +62,7 @@ sub _setup_helpers {
     $self->helper(verify_jwt => sub {
         my ($c, $token) = @_;
 
-        my $claims = eval { _decode_jwt_token($token) };
+        my $claims = eval { _decode_jwt_token($token, $c->app->config) };
         return (undef, "Token inválido: $@") if $@;
 
         return ($claims, undef);
@@ -95,19 +95,12 @@ sub _setup_openapi {
 
                 # Sincroniza o usuário no banco e obtém o UUID interno
                 my $db_user = eval {
-                    $c->pg->db->query(
-                        q{INSERT INTO users (keycloak_id, email, display_name, role)
-                          VALUES ($1, $2, $3, $4)
-                          ON CONFLICT (keycloak_id) DO UPDATE
-                            SET email        = EXCLUDED.email,
-                                display_name = EXCLUDED.display_name,
-                                role         = EXCLUDED.role
-                          RETURNING id},
-                        $claims->{sub},
-                        $claims->{email} // '',
-                        $claims->{preferred_username} // $claims->{name} // 'Usuário',
-                        $role
-                    )->hash;
+                    Stega::Repository::Pg::User->new(db => $c->pg->db)->upsert_from_keycloak(
+                        keycloak_id  => $claims->{sub},
+                        email        => $claims->{email} // '',
+                        display_name => $claims->{preferred_username} // $claims->{name} // 'Usuário',
+                        role         => $role,
+                    );
                 };
 
                 $c->stash(
@@ -164,7 +157,7 @@ sub _setup_routes {
 }
 
 sub _decode_jwt_token {
-    my $token = shift;
+    my ($token, $config) = @_;
 
     # Determina o algoritmo sem validação criptográfica (lê apenas o header)
     my ($hdr_b64) = split /\./, $token;
@@ -175,15 +168,15 @@ sub _decode_jwt_token {
     my $alg = (JSON::PP::decode_json(MIME::Base64::decode_base64($hdr_b64)))->{alg} // '';
 
     if ($alg eq 'HS256') {
-        my $secret = $ENV{TEST_JWT_SECRET}
+        my $secret = $config->{test_jwt_secret}
             or die "TEST_JWT_SECRET não configurada para token HS256";
         return decode_jwt(token => $token, key => $secret, accepted_alg => 'HS256');
     }
 
     # RS256/RS384/RS512: busca chave pública via JWKS do Keycloak (cache por processo)
     unless ($jwks_cache) {
-        my $keycloak_url = $ENV{KEYCLOAK_URL} or die "KEYCLOAK_URL não configurada";
-        my $realm        = $ENV{KEYCLOAK_REALM} // 'stega';
+        my $keycloak_url = $config->{keycloak}{url} or die "KEYCLOAK_URL não configurada";
+        my $realm        = $config->{keycloak}{realm};
 
         require Mojo::UserAgent;
         $jwks_cache = Mojo::UserAgent->new

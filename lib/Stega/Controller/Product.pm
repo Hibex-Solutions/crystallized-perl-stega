@@ -1,11 +1,13 @@
 package Stega::Controller::Product;
 use Mojo::Base 'Mojolicious::Controller', -strict;
 
-use Mojo::JSON qw(encode_json decode_json);
+use Stega::Domain::TicketPolicy;
+use Stega::Domain::Product;
+use Stega::Repository::Pg::Product;
 
 sub index {
     my $c = shift;
-    my $products = $c->pg->db->query('SELECT * FROM products ORDER BY name')->hashes;
+    my $products = Stega::Repository::Pg::Product->new(db => $c->pg->db)->list_all;
     $c->render(template => 'products/index', products => $products);
 }
 
@@ -21,16 +23,15 @@ sub create {
     my $slug = $c->param('slug') // '';
     my $desc = $c->param('description') // '';
 
-    return $c->render(text => 'Nome obrigatório', status => 400) unless $name;
-    return $c->render(text => 'Slug obrigatório', status => 400) unless $slug;
-
     $slug =~ s/[^a-z0-9-]/-/gi;
     $slug = lc $slug;
 
-    $c->pg->db->query(
-        'INSERT INTO products (name, slug, description) VALUES ($1, $2, $3)',
-        $name, $slug, $desc
+    my $domain = Stega::Domain::Product->new(
+        repository => Stega::Repository::Pg::Product->new(db => $c->pg->db),
     );
+
+    eval { $domain->create(name => $name, slug => $slug, description => $desc) };
+    return $c->render(text => $@, status => 400) if $@;
 
     $c->redirect_to('/admin/products');
 }
@@ -44,24 +45,13 @@ sub update {
     $updates{name}        = $json->{name}        if exists $json->{name};
     $updates{description} = $json->{description} if exists $json->{description};
     $updates{is_active}   = $json->{is_active}   if exists $json->{is_active};
-    $updates{settings}    = encode_json($json->{settings}) if exists $json->{settings};
+    $updates{settings}    = $json->{settings}    if exists $json->{settings};
 
     return $c->render(json => { error => 'Nenhum campo para atualizar' }, status => 400)
         unless %updates;
 
-    my (@parts, @vals, $i);
-    $i = 1;
-    for my $key (keys %updates) {
-        my $cast = $key eq 'settings' ? '::jsonb' : '';
-        push @parts, "$key = \$$i$cast";
-        push @vals,  $updates{$key};
-        $i++;
-    }
-    push @vals, $id;
-    my $set = join(', ', @parts);
-    $c->pg->db->query("UPDATE products SET $set WHERE id = \$$i", @vals);
-
-    my $product = $c->pg->db->query('SELECT * FROM products WHERE id = $1', $id)->hash;
+    my $product = Stega::Repository::Pg::Product->new(db => $c->pg->db)
+        ->update_fields(id => $id, fields => \%updates);
     return $c->render(json => { error => 'Não encontrado' }, status => 404) unless $product;
     $c->render(json => { data => $product });
 }
@@ -69,9 +59,7 @@ sub update {
 sub api_list {
     my $c = shift;
     $c->openapi->valid_input or return;
-    my $products = $c->pg->db->query(
-        'SELECT * FROM products WHERE is_active = true ORDER BY name'
-    )->hashes;
+    my $products = Stega::Repository::Pg::Product->new(db => $c->pg->db)->list_active;
     $c->render(json => { data => $products });
 }
 
@@ -82,19 +70,21 @@ sub api_create {
     my $role = ($c->stash('current_user') // {})->{role} // '';
 
     return $c->render(json => { error => 'Apenas admins' }, status => 403)
-        unless $role eq 'admin';
+        unless Stega::Domain::TicketPolicy->can_manage_products($role);
 
-    my $name = $json->{name} // '';
-    my $slug = $json->{slug} // '';
-    return $c->render(json => { error => 'name é obrigatório' }, status => 422) unless $name;
-    return $c->render(json => { error => 'slug é obrigatório' }, status => 422) unless $slug;
+    my $domain = Stega::Domain::Product->new(
+        repository => Stega::Repository::Pg::Product->new(db => $c->pg->db),
+    );
 
-    my $product = $c->pg->db->query(
-        'INSERT INTO products (name, slug, description, settings)
-         VALUES ($1, $2, $3, $4::jsonb) RETURNING *',
-        $name, $slug, $json->{description},
-        $json->{settings} ? encode_json($json->{settings}) : undef
-    )->hash;
+    my $product = eval {
+        $domain->create(
+            name        => $json->{name},
+            slug        => $json->{slug},
+            description => $json->{description},
+            settings    => $json->{settings},
+        );
+    };
+    return $c->render(json => { error => $@ }, status => 422) if $@;
 
     $c->render(json => { data => $product }, status => 201);
 }
@@ -104,7 +94,7 @@ sub api_update {
     $c->openapi->valid_input or return;
     my $role = ($c->stash('current_user') // {})->{role} // '';
     return $c->render(json => { error => 'Apenas admins' }, status => 403)
-        unless $role eq 'admin';
+        unless Stega::Domain::TicketPolicy->can_manage_products($role);
     $c->update;
 }
 

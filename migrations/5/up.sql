@@ -1,4 +1,4 @@
--- 5 up
+-- create_comments: comentários públicos e internos sobre um ticket
 CREATE TABLE comments (
     id          BIGSERIAL    PRIMARY KEY,
     ticket_id   BIGINT       NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -13,6 +13,3 @@ CREATE TABLE comments (
 );
 
 CREATE INDEX ON comments (ticket_id);
-
--- 5 down
-DROP TABLE comments;

@@ -1,4 +1,4 @@
--- 7 up
+-- create_tags: rótulos livres aplicáveis a tickets
 CREATE TABLE tags (
     id   BIGSERIAL  PRIMARY KEY,
     name TEXT       NOT NULL UNIQUE
@@ -9,7 +9,3 @@ CREATE TABLE ticket_tags (
     tag_id     BIGINT  NOT NULL REFERENCES tags(id)     ON DELETE CASCADE,
     PRIMARY KEY (ticket_id, tag_id)
 );
-
--- 7 down
-DROP TABLE ticket_tags;
-DROP TABLE tags;

@@ -10,7 +10,8 @@ sub github {
     my $event     = $c->req->headers->header('X-GitHub-Event')      // '';
     my $body      = $c->req->body;
 
-    unless (_verify_github_signature($body, $signature)) {
+    my $secret = $c->app->config->{github_webhook_secret};
+    unless (_verify_github_signature($body, $signature, $secret)) {
         return $c->render(json => { error => 'Assinatura inválida' }, status => 401);
     }
 
@@ -40,9 +41,9 @@ sub generic {
 }
 
 sub _verify_github_signature {
-    my ($body, $sig_header) = @_;
+    my ($body, $sig_header, $secret) = @_;
 
-    my $secret = $ENV{GITHUB_WEBHOOK_SECRET} or return 1;
+    return 1 unless $secret;
 
     require Digest::HMAC_SHA256;
     my $expected = 'sha256=' . Digest::HMAC_SHA256::hmac_sha256_hex($body, $secret);

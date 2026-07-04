@@ -1,4 +1,4 @@
--- 6 up
+-- create_events: trilha de auditoria de cada ticket
 CREATE TABLE events (
     id          BIGSERIAL    PRIMARY KEY,
     ticket_id   BIGINT       NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -15,6 +15,3 @@ CREATE TABLE events (
 CREATE INDEX ON events (ticket_id);
 CREATE INDEX ON events (type);
 CREATE INDEX ON events USING GIN (payload);
-
--- 6 down
-DROP TABLE events;

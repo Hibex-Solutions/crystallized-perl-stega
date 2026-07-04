@@ -1,4 +1,6 @@
 package Stega::Model::Product;
+use v5.42;
+use utf8;
 use Moo;
 use namespace::autoclean;
 

@@ -1,4 +1,4 @@
--- 1 up
+-- create_users: tabela de usuários sincronizados a partir do Keycloak
 CREATE TABLE users (
     id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     keycloak_id  TEXT         NOT NULL UNIQUE,
@@ -8,6 +8,3 @@ CREATE TABLE users (
     role         TEXT         NOT NULL DEFAULT 'customer',
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
-
--- 1 down
-DROP TABLE users;
