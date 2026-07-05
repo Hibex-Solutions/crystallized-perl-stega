@@ -1,0 +1,41 @@
+% layout 'default', title => 'Credenciais de Webhook';
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">Credenciais de Webhook</h1>
+  <a href="/admin/webhook-credentials/new" class="btn btn-primary">+ Nova Credencial</a>
+</div>
+
+% if (!@{$credentials // []}) {
+<div class="alert alert-info">Nenhuma credencial cadastrada.</div>
+% } else {
+<div class="table-responsive">
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Nome</th>
+        <th>Origem</th>
+        <th>Status</th>
+        <th>Tickets vinculados</th>
+        <th>Criada em</th>
+      </tr>
+    </thead>
+    <tbody>
+      % for my $cred (@{$credentials}) {
+      <tr>
+        <td><a href="/admin/webhook-credentials/<%= $cred->{id} %>"><strong><%= $cred->{name} %></strong></a></td>
+        <td><code><%= $cred->{source} %></code></td>
+        <td>
+          % if ($cred->{is_active}) {
+          <span class="badge bg-success">Ativa</span>
+          % } else {
+          <span class="badge bg-secondary">Inativa</span>
+          % }
+        </td>
+        <td><%= $cred->{linked_count} %></td>
+        <td><%= $cred->{created_at} %></td>
+      </tr>
+      % }
+    </tbody>
+  </table>
+</div>
+% }

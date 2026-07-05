@@ -49,12 +49,12 @@ sub load {
             client_id     => $ENV{KEYCLOAK_CLIENT_ID}     // 'stega-web',
             client_secret => $ENV{KEYCLOAK_CLIENT_SECRET} // '',
         },
-        stega_secret          => $ENV{STEGA_SECRET} // 'dev_secret_mude_em_producao',
-        # Sem default — TEST_JWT_SECRET só é exigida para tokens HS256 (teste);
-        # GITHUB_WEBHOOK_SECRET ausente desativa a verificação de assinatura
-        # (comportamento de desenvolvimento, ver Stega::Controller::Webhook).
-        test_jwt_secret       => $ENV{TEST_JWT_SECRET},
-        github_webhook_secret => $ENV{GITHUB_WEBHOOK_SECRET},
+        stega_secret => $ENV{STEGA_SECRET} // 'dev_secret_mude_em_producao',
+        # Sem default — TEST_JWT_SECRET só é exigida para tokens HS256 (teste).
+        # Segredos de webhook não ficam aqui: são credenciais administráveis
+        # em banco (webhook_credentials), não variável de ambiente — ver
+        # Stega::Domain::WebhookCredential.
+        test_jwt_secret => $ENV{TEST_JWT_SECRET},
     };
 }
 

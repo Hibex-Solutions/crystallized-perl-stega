@@ -2,6 +2,9 @@ package Stega::Job::ProcessWebhookPayload;
 use v5.42;
 use utf8;
 
+use Stega::Repository::Pg::Ticket;
+use Stega::Domain::Ticket;
+
 sub run {
     my ($job, $args) = @_;
 
@@ -21,49 +24,60 @@ sub _process_github {
     my $payload = $args->{payload} // {};
     my $app     = $job->app;
     my $db      = $app->pg->db;
+    my $repo    = Stega::Repository::Pg::Ticket->new(db => $db);
+    my $domain  = Stega::Domain::Ticket->new(repository => $repo);
 
     unless ($event eq 'issues') {
         return $job->finish({ skipped => "evento $event ignorado" });
     }
 
-    my $action = $payload->{action} // '';
-    my $issue  = $payload->{issue}  // {};
-    my $repo   = $payload->{repository}{full_name} // '';
+    my $action       = $payload->{action} // '';
+    my $issue        = $payload->{issue}  // {};
+    my $github_repo  = $payload->{repository}{full_name} // '';
+    my $cred_extra   = {
+        webhook_credential_id   => $args->{webhook_credential_id},
+        webhook_credential_name => $args->{webhook_credential_name},
+    };
 
     my $product = $db->query(
         q{SELECT id FROM products WHERE settings->>'github_repo' = $1 AND is_active = true},
-        $repo
+        $github_repo
     )->hash;
 
     unless ($product) {
-        return $job->finish({ skipped => "repositório $repo não mapeado a produto" });
+        return $job->finish({ skipped => "repositório $github_repo não mapeado a produto" });
     }
 
     if ($action eq 'opened') {
         my $system_user = _get_or_create_system_user($db);
 
-        $db->query(
-            'INSERT INTO tickets (product_id, author_id, title, body, custom_fields)
-             VALUES ($1, $2, $3, $4, $5::jsonb)',
-            $product->{id},
-            $system_user->{id},
-            "[GitHub] $issue->{title}",
-            $issue->{body} // '',
-            do { require JSON::PP; JSON::PP::encode_json({
+        $domain->create(
+            product_id    => $product->{id},
+            author_id     => $system_user->{id},
+            title         => "[GitHub] $issue->{title}",
+            body          => $issue->{body} // '',
+            custom_fields => {
                 github_issue_number => $issue->{number},
                 github_issue_url    => $issue->{html_url},
-                github_repo         => $repo,
-            }) }
+                github_repo         => $github_repo,
+            },
+            event_extra => $cred_extra,
         );
 
     } elsif ($action eq 'closed') {
-        $db->query(
-            q{UPDATE tickets SET status = 'resolved', updated_at = NOW(), resolved_at = NOW()
-               WHERE custom_fields->>'github_issue_number' = $1
-                 AND product_id = $2
-                 AND status != 'closed'},
-            $issue->{number} . '', $product->{id}
+        my $ticket = $repo->find_by_github_issue(
+            issue_number => $issue->{number}, product_id => $product->{id},
         );
+
+        if ($ticket && $ticket->{status} ne 'closed' && $ticket->{status} ne 'resolved') {
+            my $system_user = _get_or_create_system_user($db);
+            $domain->change_status(
+                ticket      => $ticket,
+                status      => 'resolved',
+                actor_id    => $system_user->{id},
+                event_extra => $cred_extra,
+            );
+        }
     }
 
     $job->finish({ processed => $action });
@@ -74,6 +88,8 @@ sub _process_generic {
 
     my $app          = $job->app;
     my $db           = $app->pg->db;
+    my $repo         = Stega::Repository::Pg::Ticket->new(db => $db);
+    my $domain       = Stega::Domain::Ticket->new(repository => $repo);
     my $product_slug = $args->{product_slug} // '';
     my $payload      = $args->{payload}      // {};
 
@@ -87,14 +103,16 @@ sub _process_generic {
 
     my $system_user = _get_or_create_system_user($db);
 
-    $db->query(
-        'INSERT INTO tickets (product_id, author_id, title, body, custom_fields)
-         VALUES ($1, $2, $3, $4, $5::jsonb)',
-        $product->{id},
-        $system_user->{id},
-        $payload->{title} // 'Ticket via webhook',
-        $payload->{body}  // '',
-        do { require JSON::PP; JSON::PP::encode_json($payload) }
+    $domain->create(
+        product_id    => $product->{id},
+        author_id     => $system_user->{id},
+        title         => $payload->{title} // 'Ticket via webhook',
+        body          => $payload->{body}  // '',
+        custom_fields => $payload,
+        event_extra   => {
+            webhook_credential_id   => $args->{webhook_credential_id},
+            webhook_credential_name => $args->{webhook_credential_name},
+        },
     );
 
     $job->finish({ processed => 'generic_webhook' });

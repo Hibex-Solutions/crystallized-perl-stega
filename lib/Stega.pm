@@ -154,6 +154,14 @@ sub _setup_routes {
     $admin->post('/products')->to('product#create');
     $admin->patch('/products/:id')->to('product#update');
     $admin->get('/users')->to('user#index');
+
+    $admin->get('/webhook-credentials')->to('webhook_credential#index');
+    $admin->get('/webhook-credentials/new')->to('webhook_credential#new_form');
+    $admin->post('/webhook-credentials')->to('webhook_credential#create');
+    $admin->get('/webhook-credentials/:id')->to('webhook_credential#show');
+    $admin->post('/webhook-credentials/:id/rotate')->to('webhook_credential#rotate');
+    $admin->post('/webhook-credentials/:id/active')->to('webhook_credential#set_active');
+    $admin->post('/webhook-credentials/:id/delete')->to('webhook_credential#delete');
 }
 
 sub _decode_jwt_token {

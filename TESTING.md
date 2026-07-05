@@ -80,6 +80,8 @@ Dados de desenvolvimento inseridos com sucesso:
   Agente:    <uuid> (agente@stega.dev)
   Cliente:   <uuid> (cliente@stega.dev)
   Ticket:    1 (Erro ao fazer login)
+  Credencial de webhook (generic): <uuid> / segredo: dev_secret_generic_webhook_stega_demo
+  Credencial de webhook (github):  <uuid> / segredo: dev_secret_github_webhook_stega_demo
 ```
 
 ---
@@ -90,7 +92,7 @@ Dados de desenvolvimento inseridos com sucesso:
 docker compose --profile full --profile test run --rm test
 ```
 
-Resultado esperado — 12 arquivos, todos `ok`:
+Resultado esperado — 13 arquivos, todos `ok`:
 
 ```
 t/001_health.t ............. ok
@@ -105,6 +107,7 @@ t/unit/domain/comment.t .... ok
 t/unit/domain/product.t .... ok
 t/unit/domain/ticket.t ..... ok
 t/unit/domain/ticket_policy.t ok
+t/unit/domain/webhook_credential.t ok
 Result: PASS
 ```
 
@@ -114,11 +117,12 @@ Result: PASS
 | `unit/domain/product.t` | Regras puras de `Stega::Domain::Product` com Repository fake — sem banco (ver ADR-020) |
 | `unit/domain/ticket.t` | Regras puras de `Stega::Domain::Ticket` com Repository fake — sem banco (ver ADR-020) |
 | `unit/domain/comment.t` | Regras puras de `Stega::Domain::Comment` com Repository fake — sem banco (ver ADR-020) |
+| `unit/domain/webhook_credential.t` | Regras puras de `Stega::Domain::WebhookCredential` com Repository fake — sem banco (ver ADR-020) |
 | `001_health.t` | Health check da infraestrutura |
 | `010_tickets_api.t` | CRUD de tickets, arquivamento, filtros |
 | `011_comments_api.t` | Comentários públicos e internos |
 | `020_products_api.t` | Permissões de produtos |
-| `030_webhooks.t` | Receptores de webhook |
+| `030_webhooks.t` | Receptores de webhook — autenticação por credencial, atribuição de eventos |
 | `040_auth.t` | Autenticação JWT |
 | `050_ticket_assignment.t` | Regras de atribuição e visibilidade histórica |
 | `060_business_rules.t` | Cobertura de todas as regras do BUSINESS.md |
@@ -350,12 +354,40 @@ curl -s -o NUL -w "HTTP_STATUS:%{http_code}`n" -X PATCH "http://localhost:3000/a
 
 ### Webhooks
 
+Os dois endpoints exigem uma credencial administrável (ver seção "Administração
+de credenciais de webhook" mais abaixo) — não aceitam mais chamada sem
+autenticação. O seed (seção 4) já cria uma credencial de cada origem com
+segredo fixo, só para este roteiro:
+
+```powershell
+$genericCredId = (docker compose exec -T postgres psql -U postgres -d stega -tAc `
+  "SELECT id FROM webhook_credentials WHERE source='generic' AND name='Genérico (seed)' LIMIT 1").Trim()
+$githubCredId  = (docker compose exec -T postgres psql -U postgres -d stega -tAc `
+  "SELECT id FROM webhook_credentials WHERE source='github' AND name='GitHub (seed)' LIMIT 1").Trim()
+$genericSecret = 'dev_secret_generic_webhook_stega_demo'
+$githubSecret  = 'dev_secret_github_webhook_stega_demo'
+
+function New-HmacSha256Signature {
+    param([string]$Body, [string]$Secret)
+    $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($Secret))
+    $hash = $hmac.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Body))
+    return 'sha256=' + (($hash | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+```
+
 ```powershell
 # Genérico — cria ticket associado ao produto "stega-demo" via job assíncrono (Minion)
+$genericBody = '{"title":"Ticket via webhook generico","body":"Criado por integracao externa"}'
 curl -s -X POST "http://localhost:3000/api/v1/webhooks/generic?product=stega-demo" `
   -H "Content-Type: application/json" `
-  -d '{"title":"Ticket via webhook generico","body":"Criado por integracao externa"}'
+  -H "X-Webhook-Key-Id: $genericCredId" `
+  -H "X-Webhook-Signature: $(New-HmacSha256Signature -Body $genericBody -Secret $genericSecret)" `
+  -d $genericBody
 # esperado: {"accepted":1}  (HTTP 202)
+
+# sem credencial — esperado 401
+curl -s -o NUL -w "HTTP_STATUS:%{http_code}`n" -X POST "http://localhost:3000/api/v1/webhooks/generic?product=stega-demo" `
+  -H "Content-Type: application/json" -d $genericBody
 
 Start-Sleep -Seconds 3   # aguarda o minion-worker processar o job
 
@@ -365,9 +397,10 @@ Start-Sleep -Seconds 3   # aguarda o minion-worker processar o job
 ```
 
 ```powershell
-# GitHub — sem GITHUB_WEBHOOK_SECRET configurado (padrão de desenvolvimento),
-# qualquer assinatura é aceita. O produto "stega-demo" do seed já tem
-# settings.github_repo casando com o "repository.full_name" abaixo.
+# GitHub — o produto "stega-demo" do seed já tem settings.github_repo
+# casando com "repository.full_name" abaixo. O GitHub não manda um
+# identificador de credencial, só a assinatura — o servidor testa contra
+# cada credencial ativa de origem 'github' até achar uma que bata.
 $githubPayload = @'
 {
   "action": "opened",
@@ -377,6 +410,7 @@ $githubPayload = @'
 '@
 curl -s -X POST http://localhost:3000/api/v1/webhooks/github `
   -H "Content-Type: application/json" -H "X-GitHub-Event: issues" `
+  -H "X-Hub-Signature-256: $(New-HmacSha256Signature -Body $githubPayload -Secret $githubSecret)" `
   -d $githubPayload
 # esperado: {"accepted":1}
 
@@ -385,6 +419,11 @@ Start-Sleep -Seconds 3
 (curl -s "http://localhost:3000/api/v1/tickets?q=github" `
   -H "Authorization: Bearer $TOKEN_ADMIN" | ConvertFrom-Json).data | Select-Object id, title
 # esperado: aparece "[GitHub] Bug relatado no GitHub"
+
+(curl -s "http://localhost:3000/api/v1/tickets/$((curl -s 'http://localhost:3000/api/v1/tickets?q=github' -H "Authorization: Bearer $TOKEN_ADMIN" | ConvertFrom-Json).data[0].id)/events" `
+  -H "Authorization: Bearer $TOKEN_ADMIN" | ConvertFrom-Json).data | Select-Object type, created_at
+# esperado: evento ticket.created — confira em /admin/webhook-credentials/<id>
+# que a credencial "GitHub (seed)" agora mostra 1 ticket vinculado
 ```
 
 ---
@@ -439,6 +478,20 @@ para manter sessões paralelas.
 | 7 | Veja o Histórico completo do ticket | Sequência: `ticket.created → assigned → status.changed → assigned` |
 | 8 | Menu Admin → Produtos → Criar produto | Produto aparece na lista |
 
+### Admin — Credenciais de Webhook (`ana.admin` / `Senha@123`)
+
+| # | Ação | Resultado esperado |
+|---|------|--------------------|
+| 1 | Menu Admin → Credenciais de Webhook | Lista as 2 credenciais do seed (generic, github) — 0 tickets vinculados antes do roteiro de webhooks da seção 8, 1 cada depois |
+| 2 | + Nova Credencial → nome "Teste UI", origem `generic` → Criar | Redireciona para a página de detalhe mostrando o segredo em destaque |
+| 3 | Recarregue a página (F5) | Segredo não aparece mais (mostrado uma única vez) |
+| 4 | Rotacionar Segredo | Novo segredo mostrado; recarregar a página também o esconde |
+| 5 | Desativar | Badge muda para "Inativa" |
+| 6 | Ativar | Badge volta para "Ativa" |
+| 7 | Excluir (credencial "Teste UI", sem tickets vinculados) | Remove e volta para a lista |
+| 8 | Abra a credencial "GitHub (seed)" (com ticket vinculado, seção 8) | Botão Excluir substituído por aviso "Não pode ser excluída" |
+| 9 | Veja o Histórico da credencial | Mostra `created`, `secret_rotated`, `deactivated`, `activated` conforme os passos acima, cada um com o admin como ator |
+
 ---
 
 ## Checklist final
@@ -446,7 +499,7 @@ para manter sessões paralelas.
 ```
 [ ] Build sem erros (3 stages concluídos)
 [ ] keycloak-test-users garante os 3 usuários (idempotente — rodar 2x não duplica)
-[ ] 12 arquivos de teste, todos passando (Result: PASS)
+[ ] 13 arquivos de teste, todos passando (Result: PASS)
 [ ] GET /healthz → {"status":"ok"}
 [ ] GET /api → JSON da spec OpenAPI (não a UI da app)
 [ ] GET / sem login → redirect para /login (não mostra JSON)
@@ -457,8 +510,12 @@ para manter sessões paralelas.
 [ ] Agent não pode criar produto → 403
 [ ] Produto com slug duplicado → 422; settings volta como objeto aninhado (não string)
 [ ] Atribuir customer como responsável → 403
-[ ] Webhook genérico cria ticket via Minion (assíncrono)
-[ ] Webhook do GitHub (issue "opened") cria ticket via Minion
+[ ] Webhook genérico sem credencial → 401; com credencial válida cria ticket via Minion, atribuído a ela
+[ ] Webhook do GitHub sem assinatura → 401; com assinatura válida cria ticket via Minion, atribuído à credencial
+[ ] Webhook do GitHub (issue "closed") resolve o ticket e registra evento status.changed atribuído à credencial
+[ ] Credencial de webhook: segredo mostrado só uma vez (some ao recarregar a página)
+[ ] Credencial de webhook: não pode ser excluída quando há ticket vinculado (mostra aviso, não botão)
+[ ] Credencial de webhook: histórico mostra as ações administrativas com o ator correto
 [ ] Customer vê só os próprios tickets; /tickets/1 retorna 404
 [ ] Customer não vê checkbox "Interno" no formulário de comentário
 [ ] Customer não consegue alterar status → 403 na API

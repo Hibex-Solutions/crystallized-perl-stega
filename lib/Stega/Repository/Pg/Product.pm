@@ -4,8 +4,6 @@ use utf8;
 use Moo;
 use namespace::autoclean;
 
-use Mojo::JSON qw(encode_json);
-
 with 'Stega::Repository::Product';
 
 has db => (is => 'ro', required => 1);   # $c->pg->db
@@ -23,12 +21,17 @@ sub find_by_name {
 sub insert {
     my ($self, %attrs) = @_;
 
-    my $settings_json = $attrs{settings} ? encode_json($attrs{settings}) : undef;
+    # { json => ... } é o marcador nativo do Mojo::Pg para serializar Perl →
+    # JSONB — não usar encode_json() manual: a string de bytes que ele
+    # devolve, ao ser passada como bind com pg_enable_utf8 ativo, é
+    # codificada em UTF-8 de novo pelo DBD::Pg, corrompendo qualquer
+    # caractere acentuado (bug real encontrado em 2026-07-04, ver TODO.txt).
+    my $settings = $attrs{settings} ? { json => $attrs{settings} } : undef;
 
     return $self->db->query(
         'INSERT INTO products (name, slug, description, settings)
-         VALUES ($1, $2, $3, $4::jsonb) RETURNING *',
-        $attrs{name}, $attrs{slug}, $attrs{description}, $settings_json
+         VALUES ($1, $2, $3, $4) RETURNING *',
+        $attrs{name}, $attrs{slug}, $attrs{description}, $settings
     )->expand->hash;
 }
 
@@ -57,9 +60,8 @@ sub update_fields {
     my (@parts, @vals, $i);
     $i = 1;
     for my $key (keys %fields) {
-        my $cast = $key eq 'settings' ? '::jsonb' : '';
-        my $value = $key eq 'settings' && $fields{$key} ? encode_json($fields{$key}) : $fields{$key};
-        push @parts, "$key = \$$i$cast";
+        my $value = $key eq 'settings' && $fields{$key} ? { json => $fields{$key} } : $fields{$key};
+        push @parts, "$key = \$$i";
         push @vals,  $value;
         $i++;
     }

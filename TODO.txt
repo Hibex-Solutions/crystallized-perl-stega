@@ -156,27 +156,139 @@ Backlog (ideias levantadas na validação completa de 2026-07-03, não urgentes)
   (`ticket.created`, `assigned`, `status.changed`) renderizaram corretamente
   ao lado do timestamp de cada evento na página de detalhe do ticket.
 
-- [BACKLOG] Revisar autenticação dos endpoints de webhook. Estado atual em
-  `Stega::Controller::Webhook`: `POST /api/v1/webhooks/generic` não tem
-  autenticação nenhuma — qualquer chamador cria um ticket associado a
-  qualquer produto pelo slug, sem nenhuma verificação (documentado como
-  intencional em `BUSINESS.md`: "Não requer autenticação", mas vale
-  reconfirmar se isso é aceitável ou só um placeholder de demonstração).
-  `POST /api/v1/webhooks/github` já valida assinatura HMAC-SHA256
-  (`X-Hub-Signature-256`) contra `GITHUB_WEBHOOK_SECRET` — mas essa
-  verificação é **desativada por padrão** (`_verify_github_signature` retorna
-  aceito quando o segredo não está configurado, que é o caso em
-  desenvolvimento/`.env.example`), então nenhum dos dois endpoints tem
-  proteção real num ambiente rodando com a configuração padrão.
-  Webhooks tipicamente não usam OAuth/Bearer token (o chamador é outro
-  sistema, não um usuário) — o padrão do mercado é uma chave/segredo
-  compartilhado por chamador. Pesquisar o que o GitHub oferece hoje além do
-  HMAC já implementado (ex.: rotação de segredo com múltiplos segredos
-  aceitos simultaneamente, IP allowlist dos webhooks do GitHub) e decidir se
-  o endpoint `generic` (usado por "sistemas externos" genéricos, não só
-  GitHub) precisa de um mecanismo próprio de chave por chamador antes de
-  considerar isso pronto para produção — hoje é só uma decisão de
-  demonstração, não uma ADR.
+- [RESOLVIDO 2026-07-04] Autenticação dos endpoints de webhook via
+  credenciais administráveis. Estado que motivou o item: `POST /api/v1/
+  webhooks/generic` não tinha autenticação nenhuma; `POST /api/v1/webhooks/
+  github` validava HMAC-SHA256 contra um único `GITHUB_WEBHOOK_SECRET` em
+  variável de ambiente, mas ficava desativado quando o segredo não estava
+  configurado (o caso padrão em desenvolvimento) — nenhum dos dois tinha
+  proteção real com a configuração padrão. Achado adicional ao investigar:
+  a verificação do GitHub **nunca funcionou de verdade** — o código fazia
+  `require Digest::HMAC_SHA256`, mas esse módulo não existe no CPAN (o
+  `cpanfile` só traz `Digest::HMAC_MD5`/`Digest::HMAC_SHA1`, não
+  `_SHA256`); como o `return 1 unless $secret` sempre disparava primeiro
+  (segredo nunca configurado), esse `require` quebrado nunca foi exercitado
+  — se alguém chegasse a configurar `GITHUB_WEBHOOK_SECRET`, a verificação
+  morreria com "Can't locate Digest/HMAC_SHA256.pm", não validaria nada.
+
+  Requisitos levantados pelo usuário para a solução (não só "adicionar uma
+  chave"): o admin cadastra credenciais de webhook (segredo/token); pode
+  revogar e recriar (rotacionar) o segredo; pode desativar uma credencial;
+  só pode **excluir** se não houver nenhum registro vinculado a ela (a
+  interface deve indicar quando há vínculo e, nesse caso, mostrar um alerta
+  no lugar do botão excluir); toda ação sobre uma credencial (criar,
+  rotacionar, ativar/desativar, excluir) precisa de histórico de quem
+  executou e quando, visível na interface; toda ação realizada via webhook
+  (hoje: criação de ticket e, no GitHub, resolução ao fechar a issue) deve
+  registrar qual credencial a autenticou; o identificador da credencial é
+  único e imutável após criado.
+
+  Desenho decidido:
+  - Tabela `webhook_credentials` (`id UUID` gerado por `gen_random_uuid()` —
+    o identificador imutável exposto ao admin/chamador —, `name`, `source`
+    ∈ {`github`, `generic`}, `secret`, `is_active`, `created_by`,
+    timestamps). `source` existe porque os dois endpoints autenticam de
+    formas diferentes (ver abaixo), não porque a entidade em si é
+    diferente.
+  - Tabela `webhook_credential_audit` para o histórico de ações sobre a
+    própria credencial (criada/rotacionada/ativada/desativada/excluída).
+    **Sem FK real** para `webhook_credentials.id` (só um UUID solto, com
+    `webhook_credential_name` desnormalizado no momento da ação) —
+    propositalmente: se a auditoria referenciasse a credencial com FK, ou o
+    `ON DELETE` teria que ser `CASCADE` (destruindo o próprio histórico que
+    a exclusão deveria registrar) ou a exclusão ficaria bloqueada pela
+    própria auditoria (nunca seria possível excluir nada). Histórico de
+    ações sobrevive à exclusão da credencial, por design.
+  - "Registro vinculado" (o que bloqueia exclusão) = qualquer ticket cujo
+    evento `ticket.created` (ou `status.changed`, no caso do fechamento de
+    issue no GitHub) tenha `webhook_credential_id` no `payload` JSONB —
+    reaproveita a tabela `events` já existente (ADR-016/020), sem migração
+    nova em `tickets`. Contagem via `COUNT(DISTINCT ticket_id) FROM events
+    WHERE payload->>'webhook_credential_id' = ?`.
+  - Segredo mostrado **uma única vez** (na criação e a cada rotação) — a
+    sessão web guarda o valor em texto puro temporariamente, a página de
+    detalhe da credencial o exibe e o remove da sessão ao ser carregada; um
+    reload subsequente não mostra mais o valor.
+  - Verificação continua HMAC-SHA256 nos dois endpoints (não um modelo de
+    bearer token simples) — decisão forçada pelo próprio GitHub: o produto
+    do GitHub só envia `X-Hub-Signature-256` (HMAC), sem um jeito de dizer
+    *qual* segredo usou, então o servidor testa a assinatura contra cada
+    credencial `source=github` ativa. Já que o servidor precisa recalcular
+    o HMAC, o segredo tem que ficar recuperável em texto puro no banco —
+    não dá para só guardar um hash (diferente de senha, que só precisa ser
+    conferida, nunca recalculada). Isso é uma limitação aceita para esta
+    demonstração; um ambiente de produção real ia querer criptografar essa
+    coluna em nível de aplicação (`pgcrypto` ou similar), não guardá-la em
+    texto puro — registrado aqui como conhecido, não implementado agora.
+    Para manter os dois tipos de credencial consistentes (um só modelo),
+    `generic` usa o mesmo esquema: o chamador assina o corpo com o segredo
+    e informa qual credencial usou via cabeçalho `X-Webhook-Key-Id`, já que
+    aqui (diferente do GitHub) o protocolo é nosso e podemos exigir isso.
+  - Comparação de assinatura em tempo constante (não `eq` simples) — já que
+    a mudança toca justamente o código de verificação, vale corrigir esse
+    detalhe de segurança junto.
+
+  Fora do escopo desta rodada, registrado à parte: revisar o que o GitHub
+  oferece além do HMAC (rotação com múltiplos segredos aceitos
+  simultaneamente do lado do GitHub, IP allowlist dos webhooks) fica para
+  quando/se isso for cogitado para produção de verdade — o que está sendo
+  implementado agora já cobre o essencial pedido (credencial administrável,
+  revogação/rotação, histórico, atribuição). Ainda não é uma ADR do
+  repositório central — decisão de demonstração da Stega.
+
+  → Implementado: migrations 10/11 (`webhook_credentials`,
+  `webhook_credential_audit`); `Stega::Repository(::Pg)::WebhookCredential` +
+  `Stega::Domain::WebhookCredential` (ADR-020); `Stega::Controller::
+  WebhookCredential` (admin: `index`/`new`/`create`/`show`/`rotate`/
+  `set_active`/`delete`) com templates próprios e link no menu Admin;
+  `Stega::Controller::Webhook` reescrito (HMAC contra credencial em banco,
+  comparação em tempo constante, `Digest::SHA::hmac_sha256_hex` no lugar do
+  `Digest::HMAC_SHA256` que nunca existiu); `Stega::Domain::Ticket::create`/
+  `change_status` ganharam `event_extra` opcional para atribuir a credencial
+  ao evento; `Stega::Job::ProcessWebhookPayload` migrado para usar
+  Domain+Repository (não mais SQL direto) e corrigido para registrar evento
+  `status.changed` no fechamento de issue do GitHub (antes não registrava
+  nada); `eng/seed.pl` ganhou 2 credenciais de demonstração com segredo fixo
+  (só para os roteiros de `TESTING.md`); `t/030_webhooks.t` reescrito para
+  autenticar de verdade; `t/unit/domain/webhook_credential.t` novo.
+
+  Achados reais só na validação de ponta a ponta contra a aplicação real em
+  Docker (não só lendo o código):
+  1. `t/030_webhooks.t` inicialmente falhava — os jobs Minion enfileirados
+     nunca eram processados porque não há `minion-worker` rodando durante a
+     suíte (só no `docker compose up` real); corrigido chamando
+     `$t->app->minion->perform_jobs` logo após cada `POST` que enfileira,
+     processando o job de forma síncrona só para o teste.
+  2. Depois disso, as asserções sobre o payload do evento (`webhook_credential_id`)
+     ainda falhavam com `got: undef` mesmo com o dado correto no banco —
+     causa real: o helper `set_auth` deste projeto usa `$t->ua->once(start
+     => ...)`, que só anexa o header `Authorization` na *próxima* requisição;
+     meus testes chamavam `set_auth` uma vez e faziam duas requisições
+     autenticadas em seguida (a segunda saía sem token, sendo rejeitada
+     silenciosamente do ponto de vista do `get_ok`, que não checa status por
+     padrão). Todo outro teste do projeto já chama `set_auth` antes de cada
+     requisição — os meus não seguiam essa convenção.
+  3. Testando a UI admin de verdade: tentar excluir uma credencial com
+     tickets vinculados corretamente bloqueava a exclusão (o núcleo do
+     requisito), mas a caixa de erro no topo da página não aparecia — causa
+     real, não relacionada a `$@`: os templates `.ep` deste projeto exigem
+     que **toda variável usada como bareword** (`$revealed_secret` no
+     template) esteja entre as chaves passadas a `render()` naquela chamada
+     específica — a ação `delete` renderizava `show.html.ep` sem passar
+     `revealed_secret`, o que quebra a compilação do template com "Global
+     symbol requires explicit package name" (500, não uma página em branco).
+     Corrigido passando `revealed_secret => undef` explicitamente nesse
+     `render()`; a mensagem de erro em si passou a usar `stash('error')`
+     declarado uma vez no topo do template (`% my $error = stash('error');`),
+     no mesmo padrão já usado para `current_user` nos outros templates.
+  Suíte completa revalidada do zero (13 arquivos, 87 testes, `Result: PASS`)
+  e todo o ciclo de vida de uma credencial (criar → segredo some ao
+  recarregar → rotacionar → desativar/ativar → excluir sem vínculo →
+  bloquear exclusão com vínculo, com a mensagem de erro visível) validado via
+  `curl` simulando o fluxo OAuth completo (login real no Keycloak) contra a
+  aplicação rodando em Docker, e os dois webhooks (`generic`/`github`,
+  incluindo o fechamento de issue) validados com assinatura HMAC real
+  gerada a partir do segredo da credencial.
 
 - [RESOLVIDO 2026-07-04] Botão para limpar o formulário de busca de tickets
   (`templates/tickets/index.html.ep`) — o formulário só tinha o campo `q`, o
@@ -364,3 +476,45 @@ Pendências levantadas em 2026-07-03 (registradas, não implementadas):
   mesmo sufixo aleatório. Suíte completa revalidada do zero (75 testes,
   `Result: PASS`) e todo o roteiro de `curl` das seções 7 e 8 executado de
   ponta a ponta em PowerShell real contra a aplicação em Docker.
+
+- [RESOLVIDO 2026-07-04] Bug real de dupla codificação UTF-8 na escrita de
+  colunas JSONB — achado pelo usuário ao navegar na aplicação: o badge "via
+  Webhook" no histórico do ticket 4 mostrava "GenÃ©rico Teste 030" em vez de
+  "Genérico Teste 030", mas a própria credencial (mesmo nome, lido de uma
+  coluna TEXT comum) aparecia correta na interface admin. Confirmado via
+  `octet_length`/`length` no banco (não só visual) que o dado já saía
+  corrompido **na escrita**, não era problema de exibição.
+  → Causa raiz: todo `Stega::Repository::Pg::*` usava `encode_json($dados)`
+  (devolve bytes já em UTF-8, sem a flag utf8 do Perl) e passava essa string
+  como bind parameter para um placeholder com cast `::jsonb`. Com
+  `pg_enable_utf8` ativo (padrão do Mojo::Pg), o DBD::Pg trata o bind como
+  se fosse uma string "wide char" ainda não codificada e codifica de novo —
+  cada caractere acentuado (2 bytes) vira 4 bytes. Confirmado isolando as
+  duas formas de escrita lado a lado no mesmo banco: `encode_json(...)` +
+  `::jsonb` → corrompido; marcador nativo `{ json => ... }` do Mojo::Pg (sem
+  `encode_json` manual, sem cast) → correto. Ironia: a revisão da ADR-017
+  feita mais cedo hoje (ver item de JSONB `expand()` acima) documentou esse
+  `encode_json + ::jsonb` como "o padrão real da Stega", em contraste com o
+  exemplo original da própria ADR (que já mostrava `{ json => ... }`) —
+  documentei um bug como se fosse decisão deliberada. ADR-017 revisada de
+  novo para refletir a correção.
+  → Corrigido em todos os pontos afetados: `Stega::Repository::Pg::Product`
+  (`insert`, `update_fields`), `Stega::Repository::Pg::Comment` (`insert`),
+  `Stega::Repository::Pg::Ticket` (`insert_ticket`, `record_event`),
+  `Stega::Job::CheckSlaBreaches` (mesmo padrão em SQL direto — sem texto
+  acentuado nos dados reais desse job, mas mesma classe de bug). Import de
+  `encode_json` removido dos arquivos onde ficou sem uso. Não mexido:
+  `eng/seed.pl` usa `'{...}'::jsonb` como **literal embutido na própria
+  string SQL**, não como bind parameter — confirmado são do bug (a
+  `description` do produto do seed, com "ç"/"ã", já batia `octet_length`
+  correto antes desta correção); `Stega::Job::SendWelcomeNotification` usa
+  `JSON::PP::encode_json` para publicar no RabbitMQ, não para bind de banco
+  — contexto diferente, sem o mesmo risco.
+  Regressão coberta por dois testes novos (`t/020_products_api.t`,
+  `t/010_tickets_api.t`) que criam registros com acentuação em campo JSONB
+  e conferem o valor exato via API — antes desta correção, teriam falhado.
+  Validado contra a aplicação real em Docker nos quatro pontos corrigidos
+  (`products.settings`, `tickets.custom_fields`, `events.payload` via
+  webhook, `comments.metadata`), comparando `octet_length`/`length` antes e
+  depois da correção. Suíte completa revalidada (13 arquivos, 89 testes,
+  `Result: PASS`).

@@ -159,6 +159,9 @@
             <small class="text-muted d-block">
               <%= $ev->{created_at} %>
               <span class="badge bg-secondary ms-1"><%= $ev->{type} %></span>
+              % if ($ev->{payload}{webhook_credential_name}) {
+              <span class="badge bg-info text-dark ms-1">via Webhook: <%= $ev->{payload}{webhook_credential_name} %></span>
+              % }
             </small>
             % if ($ev->{type} eq 'ticket.created') {
             <span>Ticket criado por <strong><%= $ev->{actor_name} // '?' %></strong></span>

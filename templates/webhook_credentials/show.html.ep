@@ -1,0 +1,96 @@
+% layout 'default', title => 'Credencial de Webhook — ' . $credential->{name};
+% my $error = stash('error');
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0"><%= $credential->{name} %></h1>
+  <a href="/admin/webhook-credentials" class="btn btn-outline-secondary">Voltar</a>
+</div>
+
+% if ($error) {
+<div class="alert alert-danger"><%= $error %></div>
+% }
+
+% if ($revealed_secret) {
+<div class="alert alert-warning">
+  <strong>Copie o segredo agora — ele não será mostrado novamente.</strong>
+  <div class="mt-2">
+    <code style="user-select: all; word-break: break-all;"><%= $revealed_secret %></code>
+  </div>
+</div>
+% }
+
+<dl class="row">
+  <dt class="col-sm-3">Identificador (imutável)</dt>
+  <dd class="col-sm-9"><code><%= $credential->{id} %></code></dd>
+
+  <dt class="col-sm-3">Origem</dt>
+  <dd class="col-sm-9"><code><%= $credential->{source} %></code></dd>
+
+  <dt class="col-sm-3">Status</dt>
+  <dd class="col-sm-9">
+    % if ($credential->{is_active}) {
+    <span class="badge bg-success">Ativa</span>
+    % } else {
+    <span class="badge bg-secondary">Inativa</span>
+    % }
+  </dd>
+
+  <dt class="col-sm-3">Tickets vinculados</dt>
+  <dd class="col-sm-9"><%= $linked_count %></dd>
+
+  <dt class="col-sm-3">Criada por</dt>
+  <dd class="col-sm-9"><%= $credential->{created_by_name} // $credential->{created_by} %> em <%= $credential->{created_at} %></dd>
+</dl>
+
+<div class="card mb-4">
+  <div class="card-header">Ações</div>
+  <div class="card-body d-flex gap-2 flex-wrap">
+    <form method="POST" action="/admin/webhook-credentials/<%= $credential->{id} %>/rotate">
+      <button type="submit" class="btn btn-outline-primary">Rotacionar Segredo</button>
+    </form>
+
+    % if ($credential->{is_active}) {
+    <form method="POST" action="/admin/webhook-credentials/<%= $credential->{id} %>/active">
+      <input type="hidden" name="is_active" value="0">
+      <button type="submit" class="btn btn-outline-secondary">Desativar</button>
+    </form>
+    % } else {
+    <form method="POST" action="/admin/webhook-credentials/<%= $credential->{id} %>/active">
+      <input type="hidden" name="is_active" value="1">
+      <button type="submit" class="btn btn-outline-success">Ativar</button>
+    </form>
+    % }
+
+    % if ($linked_count > 0) {
+    <span class="text-muted align-self-center">
+      Não pode ser excluída — há <%= $linked_count %> ticket(s) vinculado(s) a esta credencial.
+    </span>
+    % } else {
+    <form method="POST" action="/admin/webhook-credentials/<%= $credential->{id} %>/delete"
+          onsubmit="return confirm('Excluir esta credencial permanentemente?');">
+      <button type="submit" class="btn btn-outline-danger">Excluir</button>
+    </form>
+    % }
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Histórico</div>
+  <div class="card-body p-0">
+    % if (!@{$audit // []}) {
+    <div class="p-3 text-muted">Nenhuma ação registrada ainda.</div>
+    % } else {
+    <ul class="list-group list-group-flush">
+      % for my $ev (@{$audit}) {
+      <li class="list-group-item py-2 px-3">
+        <small class="text-muted d-block">
+          <%= $ev->{created_at} %>
+          <span class="badge bg-secondary ms-1"><%= $ev->{type} %></span>
+        </small>
+        <span>Por <strong><%= $ev->{actor_name} // '?' %></strong></span>
+      </li>
+      % }
+    </ul>
+    % }
+  </div>
+</div>

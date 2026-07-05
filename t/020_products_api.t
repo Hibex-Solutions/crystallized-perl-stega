@@ -72,6 +72,30 @@ subtest 'PATCH /api/v1/products/:id — admin atualiza campos (Stega::Repository
       ->json_is('/data/settings/sla_hours/critical', 1);
 };
 
+subtest 'settings preserva acentuação (regressão — bug de dupla codificação UTF-8, 2026-07-04)' => sub {
+    # Repository::Pg::Product::insert/update_fields usavam encode_json() +
+    # bind com cast ::jsonb; a string de bytes que encode_json() devolve era
+    # codificada em UTF-8 de novo pelo DBD::Pg (pg_enable_utf8), corrompendo
+    # qualquer caractere acentuado ("canção" virava "canÃ§Ã£o"). Corrigido
+    # usando o marcador nativo { json => ... } do Mojo::Pg — ver TODO.txt.
+    my $slug = 'produto-acentuacao-' . time();
+    set_auth($admin_token);
+    $t->post_ok('/api/v1/products' => json => {
+        name     => 'Produto Acentuação',
+        slug     => $slug,
+        settings => { nota => 'canção' },
+    })->status_is(201)
+      ->json_is('/data/settings/nota', 'canção');
+
+    my $id = $t->tx->res->json->{data}{id};
+
+    set_auth($admin_token);
+    $t->patch_ok("/api/v1/products/$id" => json => {
+        settings => { nota => 'não corrompida' },
+    })->status_is(200)
+      ->json_is('/data/settings/nota', 'não corrompida');
+};
+
 subtest 'PATCH /api/v1/products/:id — sem campos retorna 400' => sub {
     set_auth($admin_token);
     $t->patch_ok("/api/v1/products/$created_id" => json => {})

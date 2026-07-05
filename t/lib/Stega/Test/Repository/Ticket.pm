@@ -88,6 +88,15 @@ sub find {
     return { %$row };
 }
 
+sub find_by_github_issue {
+    my ($self, %args) = @_;
+    my ($row) = grep {
+        (($_->{custom_fields} // {})->{github_issue_number} // '') eq $args{issue_number}
+            && ($_->{product_id} // '') eq $args{product_id}
+    } @{ $self->_tickets };
+    return $row ? { %$row } : undef;
+}
+
 sub find_for_show {
     my ($self, $id, $role, $user_id) = @_;
     my $row = $self->_find_row($id) or return undef;

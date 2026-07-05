@@ -53,6 +53,7 @@
             <ul class="dropdown-menu">
               <li><a class="dropdown-item" href="/admin/products">Produtos</a></li>
               <li><a class="dropdown-item" href="/admin/users">Usuários</a></li>
+              <li><a class="dropdown-item" href="/admin/webhook-credentials">Credenciais de Webhook</a></li>
             </ul>
           </li>
           % }

@@ -4,8 +4,6 @@ use utf8;
 use Moo;
 use namespace::autoclean;
 
-use Mojo::JSON qw(encode_json);
-
 with 'Stega::Repository::Ticket';
 
 has db => (is => 'ro', required => 1);   # $c->pg->db
@@ -128,6 +126,17 @@ sub find {
     return $self->db->query('SELECT * FROM tickets WHERE id = $1', $id)->expand->hash;
 }
 
+# Usado por Stega::Job::ProcessWebhookPayload ao processar issue 'closed' do
+# GitHub — o número da issue foi gravado em custom_fields na criação (via
+# 'opened'), não há coluna própria para ele.
+sub find_by_github_issue {
+    my ($self, %args) = @_;
+    return $self->db->query(
+        q{SELECT * FROM tickets WHERE custom_fields->>'github_issue_number' = $1 AND product_id = $2},
+        "$args{issue_number}", $args{product_id}
+    )->expand->hash;
+}
+
 sub find_for_show {
     my ($self, $id, $role, $user_id) = @_;
 
@@ -189,13 +198,14 @@ sub list_events {
 sub insert_ticket {
     my ($self, %attrs) = @_;
 
-    my $fields_json = $attrs{custom_fields} ? encode_json($attrs{custom_fields}) : undef;
+    # { json => ... } — não encode_json() manual, ver Repository::Pg::Product::insert.
+    my $custom_fields = $attrs{custom_fields} ? { json => $attrs{custom_fields} } : undef;
 
     return $self->db->query(
         'INSERT INTO tickets (product_id, author_id, title, body, priority, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb) RETURNING *',
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
         $attrs{product_id}, $attrs{author_id}, $attrs{title}, $attrs{body},
-        $attrs{priority} // 'medium', $fields_json
+        $attrs{priority} // 'medium', $custom_fields
     )->expand->hash;
 }
 
@@ -254,9 +264,10 @@ sub find_assignee_candidate {
 sub record_event {
     my ($self, %args) = @_;
 
+    # { json => ... } — não encode_json() manual, ver Repository::Pg::Product::insert.
     $self->db->query(
-        'INSERT INTO events (ticket_id, actor_id, type, payload) VALUES ($1, $2, $3, $4::jsonb)',
-        $args{ticket_id}, $args{actor_id}, $args{type}, encode_json($args{payload} // {})
+        'INSERT INTO events (ticket_id, actor_id, type, payload) VALUES ($1, $2, $3, $4)',
+        $args{ticket_id}, $args{actor_id}, $args{type}, { json => $args{payload} // {} }
     );
     return;
 }

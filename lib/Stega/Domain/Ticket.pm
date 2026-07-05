@@ -24,13 +24,19 @@ sub create {
     my $product = $self->repository->find_product($attrs{product_id});
     die "Produto inválido ou inativo\n" unless $product && $product->{is_active};
 
+    # event_extra: dados extras mesclados no payload do evento
+    # ticket.created — usado por Stega::Job::ProcessWebhookPayload para
+    # atribuir a criação a uma Stega::Domain::WebhookCredential; não é uma
+    # coluna de tickets, só de auditoria.
+    my $event_extra = delete $attrs{event_extra} // {};
+
     my $ticket = $self->repository->insert_ticket(%attrs);
 
     $self->repository->record_event(
         ticket_id => $ticket->{id},
         actor_id  => $attrs{author_id},
         type      => 'ticket.created',
-        payload   => { title => $attrs{title}, priority => $ticket->{priority} },
+        payload   => { title => $attrs{title}, priority => $ticket->{priority}, %$event_extra },
     );
 
     return $ticket;
@@ -41,7 +47,8 @@ sub create {
 # atualização e evitamos gravar um evento redundante quando o status não mudou.
 sub change_status {
     my ($self, %args) = @_;
-    my $ticket = $args{ticket};
+    my $ticket      = $args{ticket};
+    my $event_extra = $args{event_extra} // {};
 
     my $updated = $self->repository->update_status(id => $ticket->{id}, status => $args{status});
 
@@ -50,7 +57,7 @@ sub change_status {
             ticket_id => $ticket->{id},
             actor_id  => $args{actor_id},
             type      => 'status.changed',
-            payload   => { old_status => $ticket->{status}, new_status => $args{status} },
+            payload   => { old_status => $ticket->{status}, new_status => $args{status}, %$event_extra },
         );
     }
 

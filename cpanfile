@@ -19,15 +19,17 @@ requires 'namespace::autoclean', '0.29';
 # Autenticação e JWT
 requires 'Crypt::JWT', '0.034';
 
+# Geração de segredos de credenciais de webhook (CryptX — já trazido
+# transitivamente por Crypt::JWT, declarado aqui porque é usado diretamente
+# por Stega::Domain::WebhookCredential)
+requires 'Crypt::PRNG', '0.067';
+
 # Job queue (Minion + backend PostgreSQL)
 requires 'Minion';
 requires 'Minion::Backend::Pg';
 
 # Message broker (RabbitMQ)
 requires 'Net::AMQP::RabbitMQ', '2.40000';
-
-# Assinatura HMAC para webhooks
-requires 'Digest::HMAC', '1.04';
 
 # JSON
 requires 'JSON::PP', '4.0';

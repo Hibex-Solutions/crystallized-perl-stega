@@ -4,8 +4,6 @@ use utf8;
 use Moo;
 use namespace::autoclean;
 
-use Mojo::JSON qw(encode_json);
-
 with 'Stega::Repository::Comment';
 
 has db => (is => 'ro', required => 1);   # $c->pg->db
@@ -41,13 +39,14 @@ sub find {
 sub insert {
     my ($self, %attrs) = @_;
 
-    my $meta_json = $attrs{metadata} ? encode_json($attrs{metadata}) : undef;
+    # { json => ... } — não encode_json() manual, ver Repository::Pg::Product::insert.
+    my $metadata = $attrs{metadata} ? { json => $attrs{metadata} } : undef;
 
     return $self->db->query(
         'INSERT INTO comments (ticket_id, author_id, body, is_internal, metadata)
-         VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *',
+         VALUES ($1, $2, $3, $4, $5) RETURNING *',
         $attrs{ticket_id}, $attrs{author_id}, $attrs{body},
-        $attrs{is_internal} ? 1 : 0, $meta_json
+        $attrs{is_internal} ? 1 : 0, $metadata
     )->expand->hash;
 }
 

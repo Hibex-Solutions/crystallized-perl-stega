@@ -39,6 +39,19 @@ subtest 'GET /api/v1/tickets — lista com auth' => sub {
       ->json_has('/data');
 };
 
+subtest 'custom_fields preserva acentuação (regressão — bug de dupla codificação UTF-8, 2026-07-04)' => sub {
+    # Mesmo bug de Repository::Pg::Product (ver t/020_products_api.t) —
+    # encode_json() + ::jsonb corrompia acentuação; corrigido com { json => ... }.
+    set_auth($customer_token);
+    $t->post_ok('/api/v1/tickets' => json => {
+        title         => 'Ticket com acentuação',
+        body          => 'Descrição',
+        product_id    => $product_id,
+        custom_fields => { observação => 'não corrompida' },
+    })->status_is(201)
+      ->json_is('/data/custom_fields/observação', 'não corrompida');
+};
+
 subtest 'POST /api/v1/tickets — cria ticket' => sub {
     set_auth($customer_token);
     $t->post_ok('/api/v1/tickets' => json => {

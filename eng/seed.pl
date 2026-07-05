@@ -106,6 +106,21 @@ $db->query(q{
     ON CONFLICT DO NOTHING
 }, $ticket->{id}, $tag_bug->{id});
 
+# Credenciais de webhook de demonstração — segredo fixo de propósito, só para
+# rodar os roteiros de TESTING.md sem precisar passar pela interface admin
+# antes. Nunca use um segredo fixo/previsível fora de desenvolvimento local.
+my $webhook_generic = $db->query(q{
+    INSERT INTO webhook_credentials (name, source, secret, created_by)
+    VALUES ('Genérico (seed)', 'generic', 'dev_secret_generic_webhook_stega_demo', $1)
+    RETURNING id
+}, $admin->{id})->hash;
+
+my $webhook_github = $db->query(q{
+    INSERT INTO webhook_credentials (name, source, secret, created_by)
+    VALUES ('GitHub (seed)', 'github', 'dev_secret_github_webhook_stega_demo', $1)
+    RETURNING id
+}, $admin->{id})->hash;
+
 $tx->commit;
 
 say 'Dados de desenvolvimento inseridos com sucesso:';
@@ -114,3 +129,5 @@ say "  Admin:     $admin->{id} (admin\@stega.dev)";
 say "  Agente:    $agent->{id} (agente\@stega.dev)";
 say "  Cliente:   $customer->{id} (cliente\@stega.dev)";
 say "  Ticket:    $ticket->{id} (Erro ao fazer login)";
+say "  Credencial de webhook (generic): $webhook_generic->{id} / segredo: dev_secret_generic_webhook_stega_demo";
+say "  Credencial de webhook (github):  $webhook_github->{id} / segredo: dev_secret_github_webhook_stega_demo";

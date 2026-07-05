@@ -154,4 +154,28 @@ O histórico é visível para agentes e admins na página de detalhe do ticket.
 - `POST /api/v1/webhooks/github` — recebe eventos do GitHub Issues e cria tickets
   automaticamente. Processa de forma assíncrona via Minion.
 - `POST /api/v1/webhooks/generic` — receptor genérico para sistemas externos.
-  Não requer autenticação.
+
+### Autenticação
+
+Nenhum dos dois endpoints usa OAuth/Bearer token (o chamador é um sistema, não
+um usuário) — ambos exigem uma **credencial de webhook** administrável, gerenciada em
+`/admin/webhook-credentials` (papel `admin`). Cada credencial tem um identificador
+único e imutável, um segredo (mostrado uma única vez, na criação ou a cada rotação) e
+uma origem (`github` ou `generic`).
+
+Verificação por HMAC-SHA256 nos dois casos:
+
+- **GitHub**: o produto do GitHub só envia `X-Hub-Signature-256` — sem um jeito de
+  indicar qual segredo usou —, então o servidor testa a assinatura contra cada
+  credencial ativa de origem `github`.
+- **Genérico**: o chamador informa qual credencial usou via `X-Webhook-Key-Id`
+  e assina o corpo com `X-Webhook-Signature: sha256=<hmac>`.
+
+Uma credencial pode ser desativada a qualquer momento (bloqueia novas chamadas
+imediatamente) e o segredo pode ser rotacionado (invalida o segredo anterior sem
+trocar o identificador). Só pode ser **excluída** se não houver nenhum ticket
+criado ou alterado por ela — do contrário, só desativar. Toda ação sobre uma
+credencial (criação, rotação, ativação/desativação, exclusão) fica registrada
+num histórico de auditoria visível na página da credencial. Toda ação realizada
+via webhook (criação de ticket; resolução ao fechar issue do GitHub) registra
+qual credencial autenticou a chamada, visível no histórico do ticket.

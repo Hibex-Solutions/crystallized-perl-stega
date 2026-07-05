@@ -31,16 +31,19 @@ sub run {
 
         next if $elapsed_hours < $hours;
 
+        # { json => ... } — não encode_json() manual, ver
+        # Stega::Repository::Pg::Product::insert (bug de dupla codificação
+        # UTF-8 encontrado em 2026-07-04, ver TODO.txt).
         $db->query(
             'INSERT INTO events (ticket_id, type, payload)
-             VALUES ($1, $2, $3::jsonb)',
+             VALUES ($1, $2, $3)',
             $ticket->{id},
             'ticket.sla_breached',
-            do { require JSON::PP; JSON::PP::encode_json({
+            { json => {
                 priority      => $ticket->{priority},
                 sla_hours     => $hours,
                 elapsed_hours => int($elapsed_hours),
-            }) }
+            } }
         );
 
         Stega::Job::SendWelcomeNotification::_publish_notification($app, 'ticket.sla_breached', {

@@ -12,6 +12,7 @@ requires qw(
     list_for_api
     list_for_dashboard
     find
+    find_by_github_issue
     find_for_show
     list_agents_for_assignment
     list_events
