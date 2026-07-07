@@ -518,3 +518,69 @@ Pendências levantadas em 2026-07-03 (registradas, não implementadas):
   webhook, `comments.metadata`), comparando `octet_length`/`length` antes e
   depois da correção. Suíte completa revalidada (13 arquivos, 89 testes,
   `Result: PASS`).
+
+- [PENDENTE — investigar e corrigir, sem data definida] Bug real e pré-existente,
+  **diferente** do bug de dupla codificação UTF-8 resolvido acima: texto com
+  caractere acentuado (ex.: "á", "ó", "ç") lido do Postgres via `Mojo::Pg` neste
+  ambiente Docker (imagem `perl:5.42-slim`, estágio `test`) volta corrompido byte
+  a byte para dentro do Perl — **não** é problema de escrita (confirmado via
+  `octet_length`/`length` direto no `psql`, valor correto no banco:
+  `SELECT octet_length(display_name), length(display_name) FROM users WHERE
+  display_name = 'Usuário Teste 070'` → 18 bytes / 17 caracteres, exatamente o
+  esperado para um "á" de 2 bytes). O valor lido de volta pelo Perl, no entanto,
+  tem `Encode::is_utf8() == 1` (flag ligada, "decodificado") mas os bytes
+  internos (`unpack('H*', $str)`) mostram **um único byte solto** (`e1` para
+  "á", `f3` para "ó") em vez do par correto (`c3a1`) — uma string em estado
+  inconsistente: marcada como decodificada, mas com o byte Latin-1 cru por
+  dentro. Isso não é o mesmo bug já corrigido acima (aquele era escrita de
+  JSONB via `encode_json` + cast `::jsonb`; note inclusive que a avaliação
+  registrada acima — "`Stega::Job::SendWelcomeNotification` usa
+  `JSON::PP::encode_json` para publicar no RabbitMQ ... contexto diferente, sem
+  o mesmo risco" — estava **errada**: o risco existe, só que a causa raiz não é
+  o `encode_json` em si, é a leitura anterior a ele).
+
+  → Confirmado **não específico** deste caso: reproduz com um script Perl
+  isolado (sem Minion, sem RabbitMQ, sem HTTP), usando a mesma
+  `Mojo::Pg->new(...)` com `pg_enable_utf8 = -1` do resto da app; reproduz
+  tanto com `SELECT ... WHERE id = $1` (estilo posicional) quanto com
+  `WHERE id = ?` (estilo padrão) — não é sobre estilo de placeholder; reproduz
+  até lendo uma linha de um fixture de teste **pré-existente e não relacionado**
+  ("Produto Comentários", de um teste unitário de `Stega::Domain::Product`),
+  então não é específico de dado inserido por um teste novo. `client_encoding`
+  da conexão confirmado como `UTF8` (`SHOW client_encoding` retorna `UTF8`),
+  então não é negociação de encoding errada entre cliente e servidor.
+
+  → Roteiro mínimo para reproduzir (rodar dentro do container `test`, ex. via
+  `docker compose --profile full run --rm test perl -e '...'` ou um script em
+  `eng/`):
+  ```perl
+  use v5.42; use utf8; use open ':std', ':encoding(UTF-8)';
+  use Mojo::Pg;
+  use Encode qw(is_utf8);
+  my $pg = Mojo::Pg->new($ENV{POSTGRESQL_URL});
+  $pg->options->{pg_enable_utf8} = -1;
+  my $row = $pg->db->query("SELECT 'á'::text AS x")->hash;
+  say "is_utf8=" . (is_utf8($row->{x}) ? 1 : 0);
+  say "hex=" . unpack('H*', $row->{x});   # esperado c3a1; observado e1
+  ```
+
+  → Hipóteses ainda não testadas, para quem pegar isso: (1) versão do
+  `DBD::Pg` na imagem `perl:5.42-slim` e possível divergência de comportamento
+  de `pg_enable_utf8 => -1` entre versões — testar com `pg_enable_utf8 => 1`
+  explícito; (2) variáveis de locale do container (`LANG`/`LC_ALL`/`LC_CTYPE`)
+  ausentes ou como `C`/`POSIX` em vez de um locale UTF-8 — checar `locale` e
+  `perl -V:` dentro do container; (3) se o mesmo script rodado **fora** do
+  Docker (Perl nativo, se disponível) reproduz — ajudaria a isolar se é algo
+  da imagem `perl:5.42-slim` especificamente ou do ambiente em geral.
+
+  → Por que não foi corrigido agora: encontrado incidentalmente ao escrever
+  `t/070_notifications.t` (baseline de testes de fila para a ADR-022 do
+  repositório central, ainda `Proposta`) — é mais amplo que fila/RabbitMQ
+  (afeta leitura de `TEXT` em geral) e head raiz não foi encontrada; contornado
+  nos testes novos usando dados sem acentuação para não travar aquela tarefa.
+  Também explica uma falha intermitente observada em
+  `t/020_products_api.t` ("settings preserva acentuação — regressão UTF-8
+  2026-07-04") ao rodar a suíte duas vezes seguidas sem resetar o volume do
+  Postgres entre as execuções — a partir de um banco limpo esse teste passa
+  normalmente, então a causa ali provavelmente é a mesma classe de bug
+  aparecendo de forma não determinística, não uma regressão do código.

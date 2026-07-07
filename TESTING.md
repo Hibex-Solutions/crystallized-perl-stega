@@ -92,7 +92,8 @@ Dados de desenvolvimento inseridos com sucesso:
 docker compose --profile full --profile test run --rm test
 ```
 
-Resultado esperado — 13 arquivos, todos `ok`:
+Resultado esperado — 14 arquivos, todos `ok` (o `test` container precisa do
+RabbitMQ saudável — já garantido pela seção 3):
 
 ```
 t/001_health.t ............. ok
@@ -103,6 +104,7 @@ t/030_webhooks.t ........... ok
 t/040_auth.t ............... ok
 t/050_ticket_assignment.t .. ok
 t/060_business_rules.t ..... ok
+t/070_notifications.t ...... ok
 t/unit/domain/comment.t .... ok
 t/unit/domain/product.t .... ok
 t/unit/domain/ticket.t ..... ok
@@ -126,6 +128,7 @@ Result: PASS
 | `040_auth.t` | Autenticação JWT |
 | `050_ticket_assignment.t` | Regras de atribuição e visibilidade histórica |
 | `060_business_rules.t` | Cobertura de todas as regras do BUSINESS.md |
+| `070_notifications.t` | Roteamento do `NotificationWorker` (`_dispatch`) e os 3 jobs Minion que publicam no RabbitMQ (`send_welcome_notification`, `check_sla_breaches`, `generate_activity_report`) — antes deste arquivo, só `process_webhook_payload` tinha cobertura e o caminho RabbitMQ/`NotificationWorker` não tinha nenhuma (ver ADR-022 no repositório central) |
 
 ---
 

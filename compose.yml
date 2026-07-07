@@ -161,9 +161,14 @@ services:
     depends_on:
       seed:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
     environment:
       POSTGRESQL_URL: postgresql://postgres:postgres_dev@postgres:5432/stega
       POSTGRESQL_MIGRATION_URL: postgresql://postgres:postgres_dev@postgres:5432/stega
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: stega
+      RABBITMQ_PASSWORD: dev_password
       TEST_JWT_SECRET: test_secret_apenas_para_desenvolvimento
       PERL5OPT: "-Mopen=:std,:encoding(UTF-8)"
     command: prove -lr --timer t/
