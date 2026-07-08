@@ -116,6 +116,25 @@ Esta configuração local complementa essa garantia no checkout.
 
 ## 3. Instalando as dependências do projeto
 
+> **Linux/macOS — cabeçalhos do cliente PostgreSQL (`libpq`)**: `DBD::Pg`
+> (dependência transitiva do `Mojo::Pg`) precisa deles para compilar durante o
+> `carton install` abaixo. Sem isso, `cpanm` reporta falha só para esse módulo
+> sem abortar o resto da instalação — fácil de não notar no meio de uma saída
+> longa — e o sintoma só aparece depois, como `Can't locate Mojo/Pg.pm in @INC`
+> ao rodar qualquer script que usa banco (`eng/migrate.pl`, `eng/seed.pl`,
+> `eng/bootstrap_pgque.pl` etc.). Instale antes de rodar `carton install`:
+> ```bash
+> # Ubuntu / Debian
+> sudo apt-get install -y libpq-dev
+> # Fedora / RHEL / CentOS
+> sudo dnf install -y postgresql-devel
+> # macOS (Homebrew) — libpq é "keg-only", precisa entrar no PATH manualmente
+> brew install libpq
+> echo 'export PATH="'$(brew --prefix libpq)'/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+> ```
+> Detalhes completos no [Guia 1](https://hibex-solutions.github.io/crystallized-perl/guides/ambiente-de-desenvolvimento)
+> do repositório central.
+
 ```bash
 # Instalar o Carton globalmente
 # --notest evita que a suíte de testes de uma dependência transitiva do Carton
