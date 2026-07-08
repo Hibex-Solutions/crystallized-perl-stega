@@ -7,7 +7,6 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
-    librabbitmq-dev \
     libssl-dev \
     gcc \
     make \
@@ -28,6 +27,7 @@ COPY api        ./api
 COPY migrations ./migrations
 COPY eng        ./eng
 COPY script     ./script
+COPY vendor     ./vendor
 COPY t          ./t
 COPY cpanfile   ./
 
@@ -41,7 +41,6 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
-    librabbitmq4 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -54,6 +53,7 @@ COPY api        ./api
 COPY migrations ./migrations
 COPY eng        ./eng
 COPY script     ./script
+COPY vendor     ./vendor
 COPY cpanfile   ./
 
 # Expõe os módulos instalados pelo Carton sem precisar do executável `carton`

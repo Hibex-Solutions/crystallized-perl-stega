@@ -2,36 +2,69 @@ package Stega::Config;
 use v5.42;
 use utf8;
 
+use Mojo::URL;
+
 # Ponto único de leitura de variáveis de ambiente da Stega — evita `$ENV{...}`
 # espalhado por Controllers, Jobs, Workers e scripts de engenharia, cada um
 # lendo o mesmo nome (ou um nome parecido, por engano) de forma independente.
 #
 # Usado tanto pela aplicação Mojolicious (`lib/Stega.pm` popula `$app->config`
 # uma vez em startup(), com `load()` abaixo) quanto por processos sem instância
-# de app (`eng/migrate.pl`, `eng/seed.pl`, `Stega::Worker::NotificationWorker`
-# via `eng/worker.pl`), que chamam `Stega::Config::load()` diretamente.
+# de app (`eng/migrate.pl`, `eng/seed.pl`, `eng/bootstrap_pgque.pl`,
+# `Stega::Worker::NotificationWorker` via `script/worker`, `script/pgque_ticker`
+# — ver ADR-013 revisão 2026-07-07), que chamam `Stega::Config::load()`
+# diretamente.
 #
 # Onde o comportamento diverge entre os consumidores (ex.: KEYCLOAK_URL — a
 # rota de troca de token por código morre se ausente, mas as rotas de redirect
 # web caem para localhost), o valor aqui fica bruto (sem default) e cada
 # consumidor mantém sua própria decisão — ver `keycloak.url` abaixo.
+#
+# Três instâncias PostgreSQL independentes (ADR-023): `app` (dados relacionais
+# e JSONB), `jobs` (backend do Minion) e `events` (PgQue, ADR-022) — nunca a
+# mesma URL/credencial reaproveitada entre elas, mesmo que apontem para o
+# mesmo servidor em desenvolvimento local. `pg_dsn` monta a URL de conexão
+# completa (servidor/porta/banco + credencial) a partir de uma URL sem
+# credencial (formato explícito da Revisão 2026-07-04 da ADR-016).
+
+sub pg_dsn {
+    my ($url, $username, $password) = @_;
+
+    my $dsn = Mojo::URL->new($url);
+    $dsn->userinfo("$username:$password");
+
+    # to_unsafe_string, não a string overload padrão ("$dsn"/to_string): esta
+    # última OMITE a credencial por completo ao stringificar (não mascara,
+    # remove) — passar o objeto Mojo::URL direto para Mojo::Pg->new() perde
+    # usuário e senha silenciosamente (confirmado via execução real contra
+    # Postgres: DBI conecta sem credencial nenhuma). Mojo::Pg->new() precisa
+    # de uma string de conexão completa, não de um objeto Mojo::URL.
+    return $dsn->to_unsafe_string;
+}
 
 sub load {
     my $keycloak_url = $ENV{KEYCLOAK_URL};
 
     return {
         postgresql => {
-            # Sem default para migration_url — quem lê decide se cai para
-            # `url` (mesmo padrão de eng/migrate.pl antes desta mudança).
-            url           => $ENV{POSTGRESQL_URL} // 'postgresql://postgres:postgres_dev@localhost:5432/stega',
-            migration_url => $ENV{POSTGRESQL_MIGRATION_URL},
-        },
-        rabbitmq => {
-            host     => $ENV{RABBITMQ_HOST}     // 'localhost',
-            user     => $ENV{RABBITMQ_USER}     // 'stega',
-            password => $ENV{RABBITMQ_PASSWORD} // 'dev_password',
-            vhost    => $ENV{RABBITMQ_VHOST}    // '/',
-            port     => $ENV{RABBITMQ_PORT}     // 5672,
+            app => {
+                # Servidor/porta/banco — nunca credencial (Revisão 2026-07-04 da ADR-016)
+                url                => $ENV{POSTGRESQL_APP_URL} // 'postgresql://localhost:55432/stega-app',
+                username           => $ENV{POSTGRESQL_APP_USERNAME} // 'postgres',
+                password           => $ENV{POSTGRESQL_APP_PASSWORD} // 'postgres_dev',
+                migration_username => $ENV{POSTGRESQL_APP_MIGRATION_USERNAME} // 'postgres',
+                migration_password => $ENV{POSTGRESQL_APP_MIGRATION_PASSWORD} // 'postgres_dev',
+            },
+            jobs => {
+                url      => $ENV{POSTGRESQL_JOBS_URL} // 'postgresql://localhost:55433/stega-jobs',
+                username => $ENV{POSTGRESQL_JOBS_USERNAME} // 'postgres',
+                password => $ENV{POSTGRESQL_JOBS_PASSWORD} // 'postgres_dev',
+            },
+            events => {
+                url      => $ENV{POSTGRESQL_EVENTS_URL} // 'postgresql://localhost:55434/stega-events',
+                username => $ENV{POSTGRESQL_EVENTS_USERNAME} // 'postgres',
+                password => $ENV{POSTGRESQL_EVENTS_PASSWORD} // 'postgres_dev',
+            },
         },
         keycloak => {
             # Bruto — a chamada de token (server-a-servidor) e o JWKS morrem

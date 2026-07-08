@@ -4,52 +4,71 @@ use utf8;
 use open ':std', ':encoding(UTF-8)';
 $| = 1;
 
-use Net::AMQP::RabbitMQ;
-use JSON::PP qw(decode_json);
-
+use Mojo::Pg;
+use Mojo::JSON qw(decode_json);
 use Stega::Config;
 
 sub run {
-    my $rabbitmq = Stega::Config::load()->{rabbitmq};
-    my $mq       = Net::AMQP::RabbitMQ->new;
+    my $events_cfg = Stega::Config::load()->{postgresql}{events};
+    my $db = Mojo::Pg->new(Stega::Config::pg_dsn(@{$events_cfg}{qw(url username password)}))->db;
 
-    $mq->connect(
-        $rabbitmq->{host},
-        {
-            user     => $rabbitmq->{user},
-            password => $rabbitmq->{password},
-            vhost    => $rabbitmq->{vhost},
-            port     => $rabbitmq->{port},
+    # Idempotente — seguro chamar mesmo se eng/bootstrap_pgque.pl já registrou
+    # este consumidor.
+    $db->query('select pgque.subscribe(?, ?)', 'stega.notifications', 'notification_worker');
+
+    say '[NotificationWorker] Aguardando eventos. Ctrl+C para encerrar.';
+
+    while (1) {
+        # Colunas de pgque.message: msg_id, batch_id, type, payload,
+        # retry_count, created_at, extra1..4 — "payload" é `text` (JSON
+        # serializado), não jsonb nativo, então ->expand não se aplica aqui;
+        # decodificação é manual (ver decode_json abaixo).
+        my $messages = $db->query(
+            'select * from pgque.receive(?, ?, ?)',
+            'stega.notifications', 'notification_worker', 20
+        )->hashes;
+
+        unless (@$messages) {
+            sleep 1;
+            next;
         }
-    );
 
-    $mq->channel_open(1);
-    $mq->exchange_declare(1, 'stega.notifications', { exchange_type => 'topic', durable => 1 });
-    $mq->queue_declare(1, 'stega.notifications.dispatch', { durable => 1 });
-    $mq->queue_bind(1, 'stega.notifications.dispatch', 'stega.notifications', 'ticket.#');
-    $mq->queue_bind(1, 'stega.notifications.dispatch', 'stega.notifications', 'report.#');
-    $mq->consume(1, 'stega.notifications.dispatch');
-
-    say '[NotificationWorker] Aguardando mensagens. Ctrl+C para encerrar.';
-
-    while (my $msg = $mq->recv(0)) {
-        eval {
-            my $payload     = decode_json($msg->{body});
-            my $routing_key = $msg->{routing_key} // '';
-
-            _dispatch($routing_key, $payload);
-
-            $mq->ack(1, $msg->{delivery_tag});
-        };
-        if ($@) {
-            warn "[NotificationWorker] Erro ao processar mensagem: $@\n";
-            $mq->reject(1, $msg->{delivery_tag}, 0);
+        for my $msg (@$messages) {
+            eval {
+                my $payload = decode_json($msg->{payload});
+                _dispatch($msg->{type}, $payload);
+            };
+            if ($@) {
+                warn "[NotificationWorker] Erro ao processar evento: $@\n";
+                _nack($db, $msg->{batch_id}, $msg->{msg_id}, '60 seconds', "$@");
+            }
         }
+
+        # ack por LOTE (batch_id é o mesmo para todas as mensagens deste
+        # receive()) — finaliza e avança o cursor do consumidor. nack() por
+        # evento agenda retry/dead-letter, mas não substitui o ack do lote:
+        # sem ele, o mesmo lote é reentregue indefinidamente.
+        $db->query('select pgque.ack(?)', $messages->[0]{batch_id});
     }
 }
 
+# pgque.nack() exige um valor pgque.message completo (10 campos), mas só lê
+# msg_id — os demais são re-consultados internamente a partir das tabelas
+# canônicas (ver comentário "Fix #98" no pgque.sql vendorizado). Construir
+# via ROW(...)::pgque.message com NULL nos campos não usados evita qualquer
+# tentativa de serializar um hashref Perl como composite type — cada posição
+# do ROW() é um bind parameter escalar comum.
+sub _nack {
+    my ($db, $batch_id, $msg_id, $retry_after, $reason) = @_;
+
+    $db->query(
+        'select pgque.nack(?, ROW(?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)::pgque.message, ?::interval, ?)',
+        $batch_id, $msg_id, $retry_after, $reason
+    );
+}
+
 sub _dispatch {
-    my ($routing_key, $payload) = @_;
+    my ($type, $payload) = @_;
 
     my %handlers = (
         'ticket.assigned'        => \&_notify_ticket_assigned,
@@ -61,11 +80,11 @@ sub _dispatch {
         'report.weekly_ready'    => \&_send_report_email,
     );
 
-    my $handler = $handlers{$routing_key};
+    my $handler = $handlers{$type};
     if ($handler) {
         $handler->($payload);
     } else {
-        warn "[NotificationWorker] Routing key não mapeada: $routing_key\n";
+        warn "[NotificationWorker] Tipo de evento não mapeado: $type\n";
     }
 }
 

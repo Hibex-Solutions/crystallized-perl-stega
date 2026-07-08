@@ -2,6 +2,7 @@ use v5.42;
 use utf8;
 use open ':std', ':encoding(UTF-8)';
 $| = 1;
+use Config;
 use Test::More;
 use Test::Mojo;
 use Digest::SHA qw(hmac_sha256_hex);
@@ -19,6 +20,22 @@ my $db_ok = eval { $t->app->pg->db->query('SELECT 1'); 1 };
 unless ($db_ok) {
     plan skip_all => 'PostgreSQL não disponível — inicie com: docker compose up -d postgres';
 }
+
+# Minion::worker() faz croak('Minion workers do not support fork emulation')
+# em qualquer Perl com $Config{d_pseudofork} (Windows nativo/Strawberry —
+# emula fork() via ithreads, sem fork() real do SO). perform_jobs() chama
+# worker() internamente, então qualquer subtest que dependa dela precisa
+# pular nesse ambiente — não é algo introduzido pelo PgQue/Minion desta
+# aplicação, é uma limitação do próprio Minion (core/Minion.pm), presente
+# desde antes desta suíte existir. Rodar via Docker Compose (Linux dentro do
+# container) ou WSL2 contorna, porque ambos têm fork() real. Resolver de vez
+# (não só pular o teste) é pendência de pesquisa aberta na ADR-024 do
+# repositório central (crystallized-perl/docs/adrs/ADR-024-jobs-assincronos-
+# multiplataforma.md) — Proposta, sem decisão ainda.
+my $MINION_FORK_MSG =
+    'Minion não suporta fork() em Perl nativo no Windows (croak em Minion.pm::worker) '
+    . '— rode via Docker Compose (perfil full/test) ou WSL2/Linux para exercitar jobs '
+    . 'assíncronos. Pendência de pesquisa: ADR-024 (Proposta) no repositório central';
 
 my $admin_token = make_jwt(role => 'admin', sub => 'adm-030', email => 'admin30@test.dev');
 sub set_auth { my $token = shift; $t->ua->once(start => sub { $_[1]->req->headers->authorization("Bearer $token") }) }
@@ -67,6 +84,8 @@ subtest 'POST /api/v1/webhooks/generic — assinatura incorreta é rejeitada' =>
 };
 
 subtest 'POST /api/v1/webhooks/generic — credencial válida cria ticket atribuído a ela' => sub {
+    plan skip_all => $MINION_FORK_MSG if $Config{d_pseudofork};
+
     my $body = encode_json({
         title => 'Alerta de sistema externo',
         body  => 'Evento gerado por sistema de monitoramento.',
@@ -106,6 +125,8 @@ subtest 'POST /api/v1/webhooks/github — sem assinatura é rejeitado' => sub {
 };
 
 subtest 'POST /api/v1/webhooks/github — assinatura válida cria ticket atribuído à credencial' => sub {
+    plan skip_all => $MINION_FORK_MSG if $Config{d_pseudofork};
+
     my $payload = encode_json({
         action => 'opened',
         issue  => {
@@ -142,6 +163,8 @@ subtest 'POST /api/v1/webhooks/github — assinatura válida cria ticket atribu�
 };
 
 subtest 'POST /api/v1/webhooks/github — issue fechada resolve o ticket e registra o evento' => sub {
+    plan skip_all => $MINION_FORK_MSG if $Config{d_pseudofork};
+
     my $close_payload = encode_json({
         action     => 'closed',
         issue      => { number => 42 },

@@ -1,0 +1,11 @@
+{
+  "repo": "NikolayS/PgQue",
+  "tag": "v0.2.0",
+  "commit": "e8ee488d2c1d87ab09eed2581ec4bbc1e68315f6",
+  "downloaded_at": "2026-07-08T14:19:09Z",
+  "files": {
+    "LICENSE": "sha256:e0efc42516b5a6e6c0da43083a7960e26d59798712ea9db300796040bcc0cc69",
+    "NOTICE": "sha256:54577e34dcf8a53f729b134afa4905083fcce21c2e58a6e4c8a926c0bfa4b289",
+    "pgque.sql": "sha256:e7ffe1c941666e6789e5c91a7d0b28196bb8a883ebaf407b13794271926a5b2f"
+  }
+}

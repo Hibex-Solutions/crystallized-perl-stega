@@ -10,7 +10,7 @@ my @checks = (
     [ 'Carton'              => sub { system('carton --version > ' . ($^O eq 'MSWin32' ? 'NUL' : '/dev/null') . ' 2>&1') == 0 } ],
     [ 'Docker'              => sub { system('docker info > '     . ($^O eq 'MSWin32' ? 'NUL' : '/dev/null') . ' 2>&1') == 0 } ],
     [ 'Docker Compose'      => sub { system('docker compose version > ' . ($^O eq 'MSWin32' ? 'NUL' : '/dev/null') . ' 2>&1') == 0 } ],
-    [ 'POSTGRESQL_URL'      => sub { defined $ENV{POSTGRESQL_URL} || 1 } ],  # Opcional em dev
+    [ 'POSTGRESQL_APP_URL'  => sub { defined $ENV{POSTGRESQL_APP_URL} || 1 } ],  # Opcional em dev
     [ '.env existe'         => sub { -f '.env' } ],
     [ 'cpanfile existe'     => sub { -f 'cpanfile' } ],
     [ 'local/ existe'       => sub { -d 'local' } ],
@@ -35,8 +35,9 @@ say '';
 if ($ok) {
     say 'Ambiente configurado corretamente.';
     say 'Próximos passos:';
-    say '  docker compose up -d postgres rabbitmq';
+    say '  docker compose up -d postgres-app postgres-jobs postgres-events postgres-keycloak keycloak';
     say '  perl eng/migrate.pl';
+    say '  perl eng/bootstrap_pgque.pl';
     say '  perl eng/seed.pl';
     say '  perl script/stega daemon';
 } else {

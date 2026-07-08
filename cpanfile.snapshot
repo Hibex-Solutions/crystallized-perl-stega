@@ -202,8 +202,8 @@ DISTRIBUTIONS
       Test::More 0.88
       Time::HiRes 0
       version 0
-  DBI-1.649
-    pathname: H/HM/HMBRAND/DBI-1.649.tgz
+  DBI-1.650
+    pathname: H/HM/HMBRAND/DBI-1.650.tgz
     provides:
       Bundle::DBI 12.008696
       DBD::DBM 0.08
@@ -259,7 +259,7 @@ DISTRIBUTIONS
       DBD::Sponge::dr 12.010003
       DBD::Sponge::st 12.010003
       DBDI 12.015129
-      DBI 1.649
+      DBI 1.650
       DBI::Const::GetInfo::ANSI 2.008697
       DBI::Const::GetInfo::ODBC 2.011374
       DBI::Const::GetInfoReturn 2.008697
@@ -299,10 +299,11 @@ DISTRIBUTIONS
       DBI::SQL::Nano::Table_ 1.015544
       DBI::Util::CacheMemory 0.010315
       DBI::Util::_accessor 0.009479
-      DBI::common 1.649
+      DBI::common 1.650
     requirements:
       ExtUtils::MakeMaker 6.48
-      Test::Simple 0.90
+      Module::Load 0.22
+      Test::Simple 0.96
       perl 5.008001
   Devel-Cover-1.52
     pathname: P/PJ/PJCJ/Devel-Cover-1.52.tar.gz
@@ -364,17 +365,6 @@ DISTRIBUTIONS
       Storable 0
       Test::More 0
       perl 5.020
-  Digest-HMAC-1.05
-    pathname: A/AR/ARODLAND/Digest-HMAC-1.05.tar.gz
-    provides:
-      Digest::HMAC 1.05
-      Digest::HMAC_MD5 1.05
-      Digest::HMAC_SHA1 1.05
-    requirements:
-      Digest::MD5 2
-      Digest::SHA 1
-      ExtUtils::MakeMaker 0
-      perl 5.008001
   Dist-CheckConflicts-0.11
     pathname: D/DO/DOY/Dist-CheckConflicts-0.11.tar.gz
     provides:
@@ -552,23 +542,6 @@ DISTRIBUTIONS
     requirements:
       ExtUtils::MakeMaker 0
       perl 5.006
-  Math-Int64-0.57
-    pathname: S/SA/SALVA/Math-Int64-0.57.tar.gz
-    provides:
-      Math::Int64 0.57
-      Math::Int64::die_on_overflow undef
-      Math::Int64::native_if_available undef
-      Math::UInt64 undef
-    requirements:
-      Exporter 0
-      ExtUtils::MakeMaker 0
-      XSLoader 0
-      constant 0
-      overload 0
-      perl 5.006
-      strict 0
-      warnings 0
-      warnings::register 0
   Minion-12.0
     pathname: S/SR/SRI/Minion-12.0.tar.gz
     provides:
@@ -796,15 +769,6 @@ DISTRIBUTIONS
       Sub::Defer 2.006006
       Sub::Quote 2.006006
       perl 5.006
-  Net-AMQP-RabbitMQ-2.40014
-    pathname: M/MS/MSTEMLE/Net-AMQP-RabbitMQ-2.40014.tar.gz
-    provides:
-      Net::AMQP::RabbitMQ 2.40014
-    requirements:
-      ExtUtils::MakeMaker 0
-      Math::Int64 0.34
-      Scalar::Util 0
-      XSLoader 0
   Package-Stash-0.40
     pathname: E/ET/ETHER/Package-Stash-0.40.tar.gz
     provides:

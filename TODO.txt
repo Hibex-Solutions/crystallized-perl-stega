@@ -1,529 +1,16 @@
-Todos os pontos abaixo foram decididos no repositório central (crystallized-perl) e
-já refletidos nesta aplicação. Mantido como histórico das perguntas originais — a
-resposta de cada uma está na ADR referenciada.
-
-- [RESOLVIDO — ADR-013] Porque precisamos ter eng/script.pl e um wrapper eng/script.ps1
-  que chama eng/script.pl? Usar como padrão `perl eng/script.pl` não parece uma boa
-  ideia já que temos o Perl garantido sempre?
-  → Wrapper .ps1 removido. `carton exec perl eng/script.pl` é o único comando, igual
-    em qualquer plataforma. O wrapper antigo nem sequer usava `carton exec` (bug real).
-
-- [RESOLVIDO — ADR-016, revisado 2026-07-02] Mojo::Pg::Migrations 5.0 já tem um padrão
-  que usa um diretório de migração ao invés de um único arquivo (from_dir). Vale
-  revisar se estamos usando as últimas versões das bibliotecas Mojolicious.
-  → Adotado `from_dir`. Decisão original (manter o loader customizado via
-    `from_string`) foi revertida: usar o mecanismo que a própria biblioteca oferece é
-    mais seguro do que manter um utilitário próprio equivalente. `migrations/N/up.sql`
-    e `migrations/N/down.sql` substituíram os arquivos únicos `NNN_descricao.sql`; a
-    descrição que estava no nome do arquivo agora é um comentário na primeira linha
-    de cada `up.sql`/`down.sql`.
-
-- [RESOLVIDO — ADR-019, nova] Vale usar `use Modern::Perl '2025';` por padrão nos
-  scripts? Ou `use 5.042` com `use warnings`/`use strict`/`use autodie`/`use utf8`?
-  Tivemos problemas de codificação de caracteres.
-  → Padrão definido: `use v5.42; use utf8;` (mais `use open ':std', ':encoding(UTF-8)';`
-    em scripts que imprimem para o terminal). `use v5.42` já habilita strict/warnings.
-    Sem `Modern::Perl` (dependência externa desnecessária). `autodie` fica opcional,
-    não é padrão. Aplicado em todo `eng/*.pl`, `lib/**/Model/*.pm`, `lib/**/Job/*.pm`,
-    `lib/Stega/Worker/*.pm`, `script/stega` e `t/**/*.t`. Controllers e `lib/Stega.pm`
-    não precisaram de mudança — `Mojo::Base ... -strict` já aplica utf8 automaticamente.
-
-- [RESOLVIDO — ADR-014] Qual repositório oficial do berrybrew — dnmfarrell ou stevieb9?
-  → `stevieb9/berrybrew` é o oficial e ativamente mantido (o próprio README do
-    repositório original aponta para lá). Instalação: `berrybrewInstaller.exe` ou
-    clone + `bin\berrybrew.exe config` (como Administrador). Atualizado em
-    DEVELOPMENT.md e README.md.
-
-- [RESOLVIDO — ADR-005] cpanfile tem questões de versões parciais (>=, ~=, etc.)?
-  `requires 'Mojolicious', '9.0';` baixa exatamente 9.0 ou a mais recente?
-  → Número isolado = versão mínima (`>= 9.0`); o `carton install` resolve para a mais
-    recente compatível, e é o `cpanfile.snapshot` (não o `cpanfile`) que fixa a versão
-    exata. Sintaxe de intervalo (`>= X, < Y`) usada quando necessário — já é o padrão
-    usado aqui para travar `Mojolicious::Plugin::OpenAPI`/`JSON::Validator` abaixo da
-    versão com a dependência XS incompatível com Perl 5.42.
-
-- [RESOLVIDO — ADR-009] Usar Mojolicious::Plugin::OpenAPI só, ou também
-  Mojolicious::Plugin::OIDC/OAuth2 para o Keycloak?
-  → Mantido o fluxo manual (redirect + troca de código + validação via JWKS com
-    Crypt::JWT) já implementado em Stega::Controller::Auth. Os plugins foram avaliados
-    e rejeitados: a API já precisa de validação local via JWKS de qualquer forma (só
-    recebe `Authorization: Bearer`), e o fluxo web tem ~40 linhas auditáveis que já
-    resolvem o caso conhecido do `id_token` sem `realm_access.roles`.
-
-- [RESOLVIDO — ADR-011 + ADR-020] Testes majoritariamente de integração (acessam
-  banco). Queria testes unitários puros para regras de negócio, com mocks. Item
-  aprofundado em 2026-07-02: queria isso para toda funcionalidade, não só permissão —
-  ex. "posso criar dois produtos com o mesmo nome/slug?" validado por uma classe de
-  domínio que usa um mecanismo abstrato de persistência, mockável em teste.
-  → Duas camadas complementares, não uma só:
-    1. **Policy** (ADR-011): autorização — `Stega::Domain::TicketPolicy`, já cobre as
-       regras de `BUSINESS.md` (quem pode fazer o quê), usada por rotas web e API.
-    2. **Domain + Repository** (ADR-020, novo): validação de negócio + execução — uma
-       classe por entidade (`Stega::Domain::Product`) recebe um Repository injetado
-       (`Stega::Repository::Product`, contrato via `Moo::Role`; implementação real
-       `Stega::Repository::Pg::Product`). Em teste, o Repository é trocado por uma
-       classe Fake (`Stega::Test::Repository::Product`, em `t/lib/` — não em `lib/`,
-       seguindo a convenção Perl de código só-de-teste) em vez de `Test::MockObject`:
-       a regra de duplicidade exige estado real entre chamadas (inserir → buscar),
-       que `Test::MockObject` exigiria simular manualmente com o mesmo resultado.
-       `Test::MockObject` continua reservado para interações pontuais com serviços
-       externos (RabbitMQ, HTTP), como já previsto desde ADR-011.
-    Piloto implementado em `Product` (`lib/Stega/Domain/Product.pm`,
-    `lib/Stega/Repository/{Product.pm,Pg/Product.pm}`,
-    `t/lib/Stega/Test/Repository/Product.pm`, `t/unit/domain/product.t`) — resolveu de
-    quebra um bug real: `api_create` de produto não tratava violação da constraint
-    `UNIQUE` de slug (estourava 500 em vez de 422) e não validava nome duplicado.
-
-    [RESOLVIDO 2026-07-03] Replicado para `Ticket` e `Comment`, com um ajuste de
-    escopo em relação ao piloto: para essas duas entidades o Repository passou a
-    cobrir todo o acesso a dados (leituras e escritas), não só as escritas
-    validadas — `Stega::Controller::Ticket`/`Comment` não chamam `$c->pg->db`
-    diretamente em nenhum método (ver "Revisão 2026-07-03" na ADR-020). Validado
-    via testes automatizados (71 testes, 12 arquivos, `Result: PASS` contra
-    Postgres real em Docker) e via `curl` contra a aplicação rodando. Dois bugs
-    reais corrigidos e confirmados por `curl`: ticket podia ser criado para
-    produto inativo/inexistente (BUSINESS.md documentava a regra, nada a impunha
-    — agora `422 Produto inválido ou inativo`, antes seria 500 por violação de
-    FK); comentário em `ticket_id` inexistente estourava 500 por violação de
-    `FOREIGN KEY` (agora `404 Ticket não encontrado`). Um terceiro item
-    (`valid_priority`, testada desde a ADR-011 mas nunca chamada por nenhum
-    Controller) só era um bug real na rota **web** (`Controller::Ticket::create`,
-    formulário HTML sem validação automática) — a rota de API já estava protegida
-    pelo enum `priority` no schema OpenAPI (`api/stega.yaml`), validado
-    automaticamente pelo `Mojolicious::Plugin::OpenAPI` antes do Controller ser
-    chamado; confirmado via `curl` que um valor fora da lista já devolvia 400
-    mesmo antes desta mudança. `valid_priority` passou a ser chamada em
-    `create`/`api_create`/`api_update` mesmo assim, por consistência com
-    `valid_status` — mas só corrige um bug de fato na rota web.
-
-    [RESOLVIDO 2026-07-03] Retrofit do `Product`: `Stega::Repository::Product`
-    ganhou `list_all`, `find` e `update_fields`; `Stega::Controller::Product`
-    não chama mais `$c->pg->db` diretamente em nenhum método (`index`, `update`
-    e `api_list` migrados). `list_active` foi ampliado de `id, name` para
-    `SELECT *` — passa a servir tanto o dropdown de novo ticket quanto
-    `api_list` com um único método. Nenhum método de `Domain::Product` novo:
-    `index`/`api_list` são leitura sem regra, `update` é escrita sem validação
-    de estado — mesma linha de corte já aplicada a `Ticket::archive` e à edição
-    de `Comment`. As três entidades (`Product`, `Ticket`, `Comment`) ficam
-    coerentes entre si: Repository cobre 100% do acesso a dados, Domain só onde
-    há validação de estado.
-
-    [RESOLVIDO 2026-07-03] `Repository::User` + retrofit de `Auth`/`Dashboard`:
-    ao revisar o que ainda restava, `Auth.pm` (6 queries), `User.pm` (3) e
-    `Dashboard.pm` (2) ainda tinham SQL direto. Achado real ao ler `Auth.pm`:
-    havia duas implementações DIVERGENTES do mesmo upsert de usuário a partir do
-    JWT — `require_jwt` (toda requisição de API) fazia um `INSERT ... ON
-    CONFLICT DO UPDATE` atômico mas descartava se era usuário novo; `_sync_user`
-    (só no login web) fazia `SELECT` + `UPDATE`/`INSERT` separados, não-atômico,
-    sujeito a corrida em dois primeiros logins concorrentes do mesmo usuário —
-    só para computar `is_first_login` (decide o e-mail de boas-vindas).
-    Unificado em `Stega::Repository::Pg::User::upsert_from_keycloak`: um único
-    `INSERT ... ON CONFLICT DO UPDATE ... RETURNING ..., (xmax = 0) AS
-    is_first_login` — o idioma padrão do Postgres para saber, dentro do próprio
-    `RETURNING`, se a linha foi inserida ou atualizada na mesma instrução.
-    Validado direto via `psql`: duas chamadas com o mesmo `keycloak_id`
-    devolvem `is_first_login = t` na primeira e `f` na segunda, mesmo `id` nas
-    duas. `_sync_user` removida. `Dashboard.pm` migrou suas duas queries
-    (visão customer e visão agent/admin com ordenação por prioridade) para
-    `Stega::Repository::Pg::Ticket::list_for_dashboard` — SQL idêntico, sem
-    mudança de comportamento, validado direto via `psql` contra o banco do
-    seed (rota depende de sessão web, sem cobertura automatizada — gap
-    pré-existente, não introduzido agora). Sem `Domain::User`: sincronizar um
-    JWT já validado não tem regra de estado a proteger. Sem Fake de
-    `Repository::User`: nenhum teste a consome ainda. Restam com SQL direto só
-    `Health` (checagem de conectividade, não é entidade) e `Webhook` (não toca
-    banco) — nenhum dos dois é candidato ao padrão.
+Pendências e itens de backlog ainda não resolvidos nesta aplicação. Itens já
+resolvidos foram removidos deste arquivo — a resposta/implementação de cada
+um está no histórico do Git e, quando aplicável, na ADR referenciada no
+repositório central (crystallized-perl).
 
 ---
-
-Backlog (ideias levantadas na validação completa de 2026-07-03, não urgentes):
-
-- [RESOLVIDO 2026-07-04] Badge visual com o tipo do evento no histórico do
-  ticket (`templates/tickets/show.html.ep`) — além da mensagem legível já
-  existente ("Ticket criado...", "Status: x → y...", "Responsável: ..."), um
-  badge com o tipo cru deixaria a timeline mais escaneável visualmente.
-  → Badge `bg-secondary` adicionado ao lado do timestamp de cada evento
-  (mesmo padrão do badge "Interno" já usado nesta página), mostrando
-  `$ev->{type}` cru. A mensagem de fallback para tipos não tratados
-  explicitamente (usada por `ticket.sla_breached`, gerado por
-  `Stega::Job::CheckSlaBreaches` via SQL direto, fora do fluxo
-  Domain+Repository) foi simplificada de `"<em>tipo</em> por ator"` para só
-  `"Evento por ator"` — o tipo cru já fica coberto pelo badge, exibi-lo nos
-  dois lugares seria redundante. Validado contra a aplicação real em Docker:
-  login OAuth via `curl` como admin, ticket criado pelo formulário web,
-  atribuído a um agente e com status alterado (tudo via POST real nas rotas
-  `/tickets`, `/tickets/:id/assign`, `/tickets/:id/status`) — os três badges
-  (`ticket.created`, `assigned`, `status.changed`) renderizaram corretamente
-  ao lado do timestamp de cada evento na página de detalhe do ticket.
-
-- [RESOLVIDO 2026-07-04] Autenticação dos endpoints de webhook via
-  credenciais administráveis. Estado que motivou o item: `POST /api/v1/
-  webhooks/generic` não tinha autenticação nenhuma; `POST /api/v1/webhooks/
-  github` validava HMAC-SHA256 contra um único `GITHUB_WEBHOOK_SECRET` em
-  variável de ambiente, mas ficava desativado quando o segredo não estava
-  configurado (o caso padrão em desenvolvimento) — nenhum dos dois tinha
-  proteção real com a configuração padrão. Achado adicional ao investigar:
-  a verificação do GitHub **nunca funcionou de verdade** — o código fazia
-  `require Digest::HMAC_SHA256`, mas esse módulo não existe no CPAN (o
-  `cpanfile` só traz `Digest::HMAC_MD5`/`Digest::HMAC_SHA1`, não
-  `_SHA256`); como o `return 1 unless $secret` sempre disparava primeiro
-  (segredo nunca configurado), esse `require` quebrado nunca foi exercitado
-  — se alguém chegasse a configurar `GITHUB_WEBHOOK_SECRET`, a verificação
-  morreria com "Can't locate Digest/HMAC_SHA256.pm", não validaria nada.
-
-  Requisitos levantados pelo usuário para a solução (não só "adicionar uma
-  chave"): o admin cadastra credenciais de webhook (segredo/token); pode
-  revogar e recriar (rotacionar) o segredo; pode desativar uma credencial;
-  só pode **excluir** se não houver nenhum registro vinculado a ela (a
-  interface deve indicar quando há vínculo e, nesse caso, mostrar um alerta
-  no lugar do botão excluir); toda ação sobre uma credencial (criar,
-  rotacionar, ativar/desativar, excluir) precisa de histórico de quem
-  executou e quando, visível na interface; toda ação realizada via webhook
-  (hoje: criação de ticket e, no GitHub, resolução ao fechar a issue) deve
-  registrar qual credencial a autenticou; o identificador da credencial é
-  único e imutável após criado.
-
-  Desenho decidido:
-  - Tabela `webhook_credentials` (`id UUID` gerado por `gen_random_uuid()` —
-    o identificador imutável exposto ao admin/chamador —, `name`, `source`
-    ∈ {`github`, `generic`}, `secret`, `is_active`, `created_by`,
-    timestamps). `source` existe porque os dois endpoints autenticam de
-    formas diferentes (ver abaixo), não porque a entidade em si é
-    diferente.
-  - Tabela `webhook_credential_audit` para o histórico de ações sobre a
-    própria credencial (criada/rotacionada/ativada/desativada/excluída).
-    **Sem FK real** para `webhook_credentials.id` (só um UUID solto, com
-    `webhook_credential_name` desnormalizado no momento da ação) —
-    propositalmente: se a auditoria referenciasse a credencial com FK, ou o
-    `ON DELETE` teria que ser `CASCADE` (destruindo o próprio histórico que
-    a exclusão deveria registrar) ou a exclusão ficaria bloqueada pela
-    própria auditoria (nunca seria possível excluir nada). Histórico de
-    ações sobrevive à exclusão da credencial, por design.
-  - "Registro vinculado" (o que bloqueia exclusão) = qualquer ticket cujo
-    evento `ticket.created` (ou `status.changed`, no caso do fechamento de
-    issue no GitHub) tenha `webhook_credential_id` no `payload` JSONB —
-    reaproveita a tabela `events` já existente (ADR-016/020), sem migração
-    nova em `tickets`. Contagem via `COUNT(DISTINCT ticket_id) FROM events
-    WHERE payload->>'webhook_credential_id' = ?`.
-  - Segredo mostrado **uma única vez** (na criação e a cada rotação) — a
-    sessão web guarda o valor em texto puro temporariamente, a página de
-    detalhe da credencial o exibe e o remove da sessão ao ser carregada; um
-    reload subsequente não mostra mais o valor.
-  - Verificação continua HMAC-SHA256 nos dois endpoints (não um modelo de
-    bearer token simples) — decisão forçada pelo próprio GitHub: o produto
-    do GitHub só envia `X-Hub-Signature-256` (HMAC), sem um jeito de dizer
-    *qual* segredo usou, então o servidor testa a assinatura contra cada
-    credencial `source=github` ativa. Já que o servidor precisa recalcular
-    o HMAC, o segredo tem que ficar recuperável em texto puro no banco —
-    não dá para só guardar um hash (diferente de senha, que só precisa ser
-    conferida, nunca recalculada). Isso é uma limitação aceita para esta
-    demonstração; um ambiente de produção real ia querer criptografar essa
-    coluna em nível de aplicação (`pgcrypto` ou similar), não guardá-la em
-    texto puro — registrado aqui como conhecido, não implementado agora.
-    Para manter os dois tipos de credencial consistentes (um só modelo),
-    `generic` usa o mesmo esquema: o chamador assina o corpo com o segredo
-    e informa qual credencial usou via cabeçalho `X-Webhook-Key-Id`, já que
-    aqui (diferente do GitHub) o protocolo é nosso e podemos exigir isso.
-  - Comparação de assinatura em tempo constante (não `eq` simples) — já que
-    a mudança toca justamente o código de verificação, vale corrigir esse
-    detalhe de segurança junto.
-
-  Fora do escopo desta rodada, registrado à parte: revisar o que o GitHub
-  oferece além do HMAC (rotação com múltiplos segredos aceitos
-  simultaneamente do lado do GitHub, IP allowlist dos webhooks) fica para
-  quando/se isso for cogitado para produção de verdade — o que está sendo
-  implementado agora já cobre o essencial pedido (credencial administrável,
-  revogação/rotação, histórico, atribuição). Ainda não é uma ADR do
-  repositório central — decisão de demonstração da Stega.
-
-  → Implementado: migrations 10/11 (`webhook_credentials`,
-  `webhook_credential_audit`); `Stega::Repository(::Pg)::WebhookCredential` +
-  `Stega::Domain::WebhookCredential` (ADR-020); `Stega::Controller::
-  WebhookCredential` (admin: `index`/`new`/`create`/`show`/`rotate`/
-  `set_active`/`delete`) com templates próprios e link no menu Admin;
-  `Stega::Controller::Webhook` reescrito (HMAC contra credencial em banco,
-  comparação em tempo constante, `Digest::SHA::hmac_sha256_hex` no lugar do
-  `Digest::HMAC_SHA256` que nunca existiu); `Stega::Domain::Ticket::create`/
-  `change_status` ganharam `event_extra` opcional para atribuir a credencial
-  ao evento; `Stega::Job::ProcessWebhookPayload` migrado para usar
-  Domain+Repository (não mais SQL direto) e corrigido para registrar evento
-  `status.changed` no fechamento de issue do GitHub (antes não registrava
-  nada); `eng/seed.pl` ganhou 2 credenciais de demonstração com segredo fixo
-  (só para os roteiros de `TESTING.md`); `t/030_webhooks.t` reescrito para
-  autenticar de verdade; `t/unit/domain/webhook_credential.t` novo.
-
-  Achados reais só na validação de ponta a ponta contra a aplicação real em
-  Docker (não só lendo o código):
-  1. `t/030_webhooks.t` inicialmente falhava — os jobs Minion enfileirados
-     nunca eram processados porque não há `minion-worker` rodando durante a
-     suíte (só no `docker compose up` real); corrigido chamando
-     `$t->app->minion->perform_jobs` logo após cada `POST` que enfileira,
-     processando o job de forma síncrona só para o teste.
-  2. Depois disso, as asserções sobre o payload do evento (`webhook_credential_id`)
-     ainda falhavam com `got: undef` mesmo com o dado correto no banco —
-     causa real: o helper `set_auth` deste projeto usa `$t->ua->once(start
-     => ...)`, que só anexa o header `Authorization` na *próxima* requisição;
-     meus testes chamavam `set_auth` uma vez e faziam duas requisições
-     autenticadas em seguida (a segunda saía sem token, sendo rejeitada
-     silenciosamente do ponto de vista do `get_ok`, que não checa status por
-     padrão). Todo outro teste do projeto já chama `set_auth` antes de cada
-     requisição — os meus não seguiam essa convenção.
-  3. Testando a UI admin de verdade: tentar excluir uma credencial com
-     tickets vinculados corretamente bloqueava a exclusão (o núcleo do
-     requisito), mas a caixa de erro no topo da página não aparecia — causa
-     real, não relacionada a `$@`: os templates `.ep` deste projeto exigem
-     que **toda variável usada como bareword** (`$revealed_secret` no
-     template) esteja entre as chaves passadas a `render()` naquela chamada
-     específica — a ação `delete` renderizava `show.html.ep` sem passar
-     `revealed_secret`, o que quebra a compilação do template com "Global
-     symbol requires explicit package name" (500, não uma página em branco).
-     Corrigido passando `revealed_secret => undef` explicitamente nesse
-     `render()`; a mensagem de erro em si passou a usar `stash('error')`
-     declarado uma vez no topo do template (`% my $error = stash('error');`),
-     no mesmo padrão já usado para `current_user` nos outros templates.
-  Suíte completa revalidada do zero (13 arquivos, 87 testes, `Result: PASS`)
-  e todo o ciclo de vida de uma credencial (criar → segredo some ao
-  recarregar → rotacionar → desativar/ativar → excluir sem vínculo →
-  bloquear exclusão com vínculo, com a mensagem de erro visível) validado via
-  `curl` simulando o fluxo OAuth completo (login real no Keycloak) contra a
-  aplicação rodando em Docker, e os dois webhooks (`generic`/`github`,
-  incluindo o fechamento de issue) validados com assinatura HMAC real
-  gerada a partir do segredo da credencial.
-
-- [RESOLVIDO 2026-07-04] Botão para limpar o formulário de busca de tickets
-  (`templates/tickets/index.html.ep`) — o formulário só tinha o campo `q`, o
-  `select` de `status` e o botão "Filtrar", sem forma de voltar ao estado sem
-  filtro a não ser apagar o texto manualmente.
-  → Adicionado link "Limpar" (`<a href="/tickets" class="btn btn-outline-secondary">`,
-  sem JS) ao lado de "Filtrar". Grid ajustado de `col-md-6/3/3` para
-  `col-md-5/3/2/2` para caber os dois botões lado a lado. Validado contra a
-  aplicação real em Docker: login via fluxo OAuth completo simulado por
-  `curl` (POST direto no form de login do Keycloak, seguindo os redirects até
-  a sessão do app), depois `GET /tickets` confirmando os dois botões
-  renderizados; `GET /tickets?q=login` mantém `value="login"` no campo (o
-  resultado vazio é esperado — o ticket do seed pertence a outro customer,
-  não a `maria.cliente`); `GET /tickets` (via "Limpar") volta com
-  `value=""` e nenhum status selecionado.
-
----
-
-Pendências levantadas em 2026-07-03 (registradas, não implementadas):
-
-- [RESOLVIDO 2026-07-03] Configuração centralizada em vez de `$ENV{...}`
-  espalhado. Ver ADR-021 (repositório central) para a decisão completa.
-  → Implementado `lib/Stega/Config.pm` (`load()`), único arquivo que contém o
-  nome de cada variável de ambiente. `lib/Stega.pm` popula `$self->config` em
-  `startup()`; Controllers leem via `$c->app->config`; `eng/migrate.pl`,
-  `eng/seed.pl` e `Stega::Worker::NotificationWorker` (sem instância de app)
-  chamam `Stega::Config::load()` diretamente. Onde o comportamento já divergia
-  entre consumidores por razão real (`KEYCLOAK_URL`: `_decode_jwt_token` morre
-  se ausente, rotas de redirect web caem para `localhost`), o valor no config
-  fica bruto e cada consumidor mantém sua própria decisão — só
-  `keycloak.frontend_url` computa a cadeia de fallback já repetida
-  identicamente em `login`/`logout`/`change_password`. `require_jwt` já tinha
-  sido removida antes (item anterior); `eng/setup.pl` não foi tocado (checagem
-  informacional que já sempre passava, não consumo real de config). Validado
-  via suíte completa (75 testes, `Result: PASS`) e via `curl`/logs contra a
-  aplicação real em Docker: `/healthz`, redirect de `/login` para o Keycloak
-  com `frontend_url` resolvido corretamente, e `NotificationWorker` conectando
-  ao RabbitMQ via `Stega::Config` sem erro.
-
-- [RESOLVIDO 2026-07-04] Colunas JSONB (`settings` de Product, `custom_fields`
-  de Ticket, `metadata` de Comment, `payload` de Event) retornavam como string
-  JSON crua na API em vez de objeto aninhado — comportamento confirmado em
-  toda a aplicação ao validar o retrofit do Product. `Repository::Pg::Ticket::
-  list_events` contornava isso manualmente com `decode_json` linha a linha
-  porque não sabia da alternativa nativa.
-  → Adotado `Mojo::Pg::Results->expand`, que decodifica automaticamente todo
-  campo `json`/`jsonb` do resultado para uma estrutura Perl nativa. Encadeado
-  `->expand->hash`/`->expand->hashes` em **toda** query de leitura de
-  `Stega::Repository::Pg::{Product,Comment,Ticket}` (inclusive nas que não
-  tocam coluna JSONB — `expand` é no-op nesse caso; aplicar de forma uniforme
-  evita ter que auditar query por query). `decode_json` manual em
-  `list_events` removido, ficou redundante. `Stega::Repository::Pg::User` não
-  precisou de mudança — tabela `users` não tem coluna JSONB. Referência:
-  Mojo::Pg::Results (https://docs.mojolicious.org/Mojo/Pg/Results). Validado
-  via suíte completa (75 testes, `Result: PASS` — `t/020_products_api.t`
-  atualizado: antes documentava o bug com `like`/regex esperando string crua,
-  agora afirma `/data/settings/sla_hours/critical` como valor numérico
-  aninhado) e via `curl` contra a aplicação real em Docker (`GET
-  /api/v1/products` retorna `settings` como objeto `{"sla_hours":{...}}`, não
-  string). ADR-017 (repositório central) revisada para refletir esse padrão —
-  também corrigiu, de quebra, um segundo exemplo desatualizado na mesma ADR:
-  o padrão de escrita `{ json => ... }` mostrado lá nunca foi usado de fato;
-  o código real sempre fez `encode_json()` explícito + cast `::jsonb` no bind.
-
-- [RESOLVIDO 2026-07-03 — achado relacionado, correção de trabalho anterior] Ao
-  investigar o item de configuração acima, descobri que a unificação do upsert
-  de usuário via JWT (2026-07-03, ver ADR-020) tinha ficado **incompleta**:
-  `Stega::Controller::Auth::require_jwt` — que eu já tinha atualizado para usar
-  `Repository::Pg::User::upsert_from_keycloak` — era **código morto**, nunca
-  referenciado por nenhuma rota. O caminho realmente usado por toda requisição
-  de API autenticada era o handler `security => { bearerAuth => ... }` dentro
-  de `_setup_openapi` em `lib/Stega.pm`, que ainda tinha sua **própria** cópia
-  inline do upsert original (`INSERT ... ON CONFLICT ... RETURNING id`, sem a
-  correção `xmax = 0`/`is_first_login`). Ou seja: eram três implementações
-  divergentes, não duas — e a que eu tinha deixado sem tocar era a que roda de
-  verdade em produção.
-  → Corrigido: `bearerAuth` agora chama `Repository::Pg::User::
-  upsert_from_keycloak`; `require_jwt` removida (código morto); comentário em
-  `Repository::Pg::User.pm` corrigido para apontar `callback` e `bearerAuth`
-  como os dois consumidores reais. Validado via suíte completa (75 testes,
-  `Result: PASS` — toda requisição autenticada de todo teste passa por este
-  handler) contra Postgres real em Docker, do zero.
-
-- [RESOLVIDO 2026-07-04] `TESTING.md` precisava ser reescrito para ser um guia
-  enxuto de teste guiado da aplicação, não um log histórico de validação da
-  implementação Domain+Repository/Ticket/Comment. O arquivo misturava dois
-  propósitos diferentes:
-  1. Validar que a implementação de uma rodada específica funcionou (o que
-     interessa a quem está desenvolvendo a Stega ou o stack central).
-  2. Guiar alguém que baixou o repositório e quer rodar a aplicação para
-     entender o funcionamento e testar as funcionalidades (o propósito real
-     de um `TESTING.md`).
-  Problemas concretos a corrigir:
-  - **Toda a "Parte 0 — Validação local rápida"** (seções 0.0 a 0.7) é sobre
-    validar Perl/Carton local — não é necessária para o propósito de teste
-    guiado, que pode assumir só Docker (única forma garantida de bater com a
-    aplicação final "de produção", sem depender de berrybrew/perlbrew, versão
-    de Perl local, etc.). Boa parte já está duplicada em `DEVELOPMENT.md`
-    (seções 2, 3 e 9 já cobrem instalação de Perl/Carton e como rodar testes
-    localmente) — o que sobrar de valor único (se houver) deveria migrar para
-    lá, não ficar em `TESTING.md`.
-  - Vários trechos narram problemas encontrados e resolvidos durante o
-    desenvolvimento em vez de só instruir: o aviso sobre versões antigas do
-    guia terem saída fora de ordem no Windows (parágrafo "Se você já rodou a
-    Parte 0 antes de 2026-07-02..."), a explicação longa de por que
-    `carton exec` precisa de `| Out-Host` no Windows, a nota sobre
-    `Net::AMQP::RabbitMQ` não buildar no Windows (relevante para quem
-    desenvolve localmente, não para quem só quer rodar via Docker). Nenhum
-    desse conteúdo ajuda alguém seguindo o guia via Docker a testar a
-    aplicação — é contexto de bastidor da nossa implementação, não instrução
-    de uso.
-  - Nem tudo que parece "narrativa de bug" deve sumir: a nota da seção 9 sobre
-    tickets de teste não terem o evento `ticket.created` no histórico
-    (`t/060_business_rules.t` insere direto via SQL) evita que quem estiver
-    testando a UI ache que encontrou um bug — isso é relevante para o
-    propósito do guia e deveria ficar, só que reescrito de forma mais direta
-    (o fato + a explicação mínima, sem o histórico de quando isso foi
-    percebido).
-  → `TESTING.md` reescrito focando só no equivalente da antiga "Parte 1 —
-  Validação completa via Docker Compose" (build, infraestrutura, migrations/
-  seed, suíte automatizada, subir a app, configurar usuários no Keycloak,
-  roteiro `curl`, roteiro de UI por perfil) — comandos diretos, resultado
-  esperado, sem explicar por que cada coisa funciona ou o que já deu errado
-  antes. A nota sobre tickets de teste sem `ticket.created` no histórico foi
-  mantida (encurtada, sem o histórico de quando foi percebida) — evita que
-  quem testa a UI ache que achou um bug. `DEVELOPMENT.md` ganhou duas
-  correções de referência cruzada: a nota de `Net::AMQP::RabbitMQ` no Windows
-  e a de `carton exec | Out-Host` apontavam para "TESTING.md (Parte 0)", que
-  deixou de existir — removidas (o conteúdo já estava completo no próprio
-  parágrafo de `DEVELOPMENT.md`, a referência era redundante). Suíte completa
-  revalidada após a reescrita (12 arquivos, 75 testes, `Result: PASS`,
-  Docker Compose).
-
-- [RESOLVIDO 2026-07-04] `TESTING.md` não cobria várias funcionalidades e
-  regras ajustadas nas rodadas anteriores (filtros `q`/`status`/paginação em
-  `Repository::Pg::Ticket::list_for_api`, os bugs reais 500→422/404/403 do
-  retrofit Domain+Repository, e os dois endpoints de webhook — nenhum tinha
-  um cenário manual). Além disso, a seção "7. Configurar usuários no
-  Keycloak" era 100% manual (criar 3 usuários via UI a cada ciclo de
-  validação), o que o usuário queria substituir por um script idempotente,
-  já que o Keycloak sobe via Docker Compose e tem API administrativa própria.
-  → `eng/keycloak_test_users.pl` (novo — nome deliberadamente explícito sobre
-  ser setup de TESTE, não configuração geral: um `keycloak_setup.pl` genérico
-  sugeriria algo que a aplicação usa em runtime): garante os 3 usuários de
-  teste via API administrativa do Keycloak (`Mojo::UserAgent`, sem
-  dependência nova — já é core do Mojolicious), idempotente (busca por
-  `username` antes de criar; senha e papel são sempre reforçados, criado ou
-  não). Novo serviço `keycloak-test-users` no `compose.yml` (perfil `full`,
-  mesmo padrão de `migrate`/`seed`). `KEYCLOAK_ADMIN_USER`/`PASSWORD` (default
-  `admin`/`admin`, mesmas credenciais de `KC_BOOTSTRAP_ADMIN_USERNAME`/
-  `PASSWORD` já usadas para o console) são lidas direto de `%ENV` pelo
-  script — **não** entraram em `Stega::Config`: nenhum consumidor da
-  aplicação em runtime usa a API administrativa do Keycloak, só este script
-  de teste, então centralizar essas credenciais no config da aplicação
-  implicaria um uso que não existe. Dois achados reais ao validar contra o
-  Keycloak de verdade (não só lendo a API):
-  (1) o serviço `keycloak` no `compose.yml` **não tem healthcheck** (a imagem
-  oficial não traz `curl`/`wget` para um `CMD-SHELL` simples) — um
-  `depends_on: condition: service_healthy` nunca teria funcionado; corrigido
-  para `service_started`, e o próprio script espera (até 2 min, com retry)
-  a realm `stega` responder antes de agir, o que também elimina a
-  necessidade de quem roda o guia acompanhar os logs manualmente (seção 3 do
-  `TESTING.md` atualizada); (2) criar um usuário só com `username`/`email`
-  faz o login por senha falhar com `"Account is not fully set up"` — o
-  Keycloak exige `firstName`/`lastName` (perfil padrão do realm) e isso não
-  aparece em `requiredActions` da representação do usuário, só se manifesta
-  no login; corrigido incluindo os dois campos na criação e reforçando-os
-  também para usuários já existentes (self-healing para quem rodou uma
-  versão anterior do script). Validado de ponta a ponta: login via
-  `client_id=stega-web` funciona para os 3 papéis, `realm_access.roles` do
-  token confere, e rodar o script 2-3x seguidas não duplica usuário nenhum.
-  → `TESTING.md`: seção 7 passou a só rodar o script; adicionadas 3 novas
-  subseções na seção 8 (filtros de listagem, validações/regras de negócio —
-  produto inexistente, ticket/comentário órfão, permissão de produto, slug
-  duplicado com conferência de que `settings` volta como objeto aninhado
-  (ver item anterior de JSONB), atribuição de responsável inválido — e
-  webhooks genérico/GitHub, usando o `github_repo`/slug já presentes no
-  seed). Checklist final atualizada. Dois bugs reais nos exemplos, achados
-  só ao copiar-colar de verdade: `-o $null` no PowerShell não suprime o
-  corpo do `curl` (interpola para string vazia, não é o dispositivo nulo do
-  Windows) — trocado por `-o NUL`; e o nome literal `"Produto Guia"` no
-  exemplo de slug duplicado colidia com a unicidade de **nome** (constraint
-  diferente da de slug, que é o que o cenário queria demonstrar) se o
-  cenário fosse repetido no mesmo ambiente — nome e slug passaram a usar o
-  mesmo sufixo aleatório. Suíte completa revalidada do zero (75 testes,
-  `Result: PASS`) e todo o roteiro de `curl` das seções 7 e 8 executado de
-  ponta a ponta em PowerShell real contra a aplicação em Docker.
-
-- [RESOLVIDO 2026-07-04] Bug real de dupla codificação UTF-8 na escrita de
-  colunas JSONB — achado pelo usuário ao navegar na aplicação: o badge "via
-  Webhook" no histórico do ticket 4 mostrava "GenÃ©rico Teste 030" em vez de
-  "Genérico Teste 030", mas a própria credencial (mesmo nome, lido de uma
-  coluna TEXT comum) aparecia correta na interface admin. Confirmado via
-  `octet_length`/`length` no banco (não só visual) que o dado já saía
-  corrompido **na escrita**, não era problema de exibição.
-  → Causa raiz: todo `Stega::Repository::Pg::*` usava `encode_json($dados)`
-  (devolve bytes já em UTF-8, sem a flag utf8 do Perl) e passava essa string
-  como bind parameter para um placeholder com cast `::jsonb`. Com
-  `pg_enable_utf8` ativo (padrão do Mojo::Pg), o DBD::Pg trata o bind como
-  se fosse uma string "wide char" ainda não codificada e codifica de novo —
-  cada caractere acentuado (2 bytes) vira 4 bytes. Confirmado isolando as
-  duas formas de escrita lado a lado no mesmo banco: `encode_json(...)` +
-  `::jsonb` → corrompido; marcador nativo `{ json => ... }` do Mojo::Pg (sem
-  `encode_json` manual, sem cast) → correto. Ironia: a revisão da ADR-017
-  feita mais cedo hoje (ver item de JSONB `expand()` acima) documentou esse
-  `encode_json + ::jsonb` como "o padrão real da Stega", em contraste com o
-  exemplo original da própria ADR (que já mostrava `{ json => ... }`) —
-  documentei um bug como se fosse decisão deliberada. ADR-017 revisada de
-  novo para refletir a correção.
-  → Corrigido em todos os pontos afetados: `Stega::Repository::Pg::Product`
-  (`insert`, `update_fields`), `Stega::Repository::Pg::Comment` (`insert`),
-  `Stega::Repository::Pg::Ticket` (`insert_ticket`, `record_event`),
-  `Stega::Job::CheckSlaBreaches` (mesmo padrão em SQL direto — sem texto
-  acentuado nos dados reais desse job, mas mesma classe de bug). Import de
-  `encode_json` removido dos arquivos onde ficou sem uso. Não mexido:
-  `eng/seed.pl` usa `'{...}'::jsonb` como **literal embutido na própria
-  string SQL**, não como bind parameter — confirmado são do bug (a
-  `description` do produto do seed, com "ç"/"ã", já batia `octet_length`
-  correto antes desta correção); `Stega::Job::SendWelcomeNotification` usa
-  `JSON::PP::encode_json` para publicar no RabbitMQ, não para bind de banco
-  — contexto diferente, sem o mesmo risco.
-  Regressão coberta por dois testes novos (`t/020_products_api.t`,
-  `t/010_tickets_api.t`) que criam registros com acentuação em campo JSONB
-  e conferem o valor exato via API — antes desta correção, teriam falhado.
-  Validado contra a aplicação real em Docker nos quatro pontos corrigidos
-  (`products.settings`, `tickets.custom_fields`, `events.payload` via
-  webhook, `comments.metadata`), comparando `octet_length`/`length` antes e
-  depois da correção. Suíte completa revalidada (13 arquivos, 89 testes,
-  `Result: PASS`).
 
 - [PENDENTE — investigar e corrigir, sem data definida] Bug real e pré-existente,
-  **diferente** do bug de dupla codificação UTF-8 resolvido acima: texto com
-  caractere acentuado (ex.: "á", "ó", "ç") lido do Postgres via `Mojo::Pg` neste
-  ambiente Docker (imagem `perl:5.42-slim`, estágio `test`) volta corrompido byte
-  a byte para dentro do Perl — **não** é problema de escrita (confirmado via
+  **diferente** do bug de dupla codificação UTF-8 já resolvido (escrita de
+  JSONB via `encode_json` + cast `::jsonb`): texto com caractere acentuado
+  (ex.: "á", "ó", "ç") lido do Postgres via `Mojo::Pg` neste ambiente Docker
+  (imagem `perl:5.42-slim`, estágio `test`) volta corrompido byte a byte para
+  dentro do Perl — **não** é problema de escrita (confirmado via
   `octet_length`/`length` direto no `psql`, valor correto no banco:
   `SELECT octet_length(display_name), length(display_name) FROM users WHERE
   display_name = 'Usuário Teste 070'` → 18 bytes / 17 caracteres, exatamente o
@@ -532,12 +19,7 @@ Pendências levantadas em 2026-07-03 (registradas, não implementadas):
   internos (`unpack('H*', $str)`) mostram **um único byte solto** (`e1` para
   "á", `f3` para "ó") em vez do par correto (`c3a1`) — uma string em estado
   inconsistente: marcada como decodificada, mas com o byte Latin-1 cru por
-  dentro. Isso não é o mesmo bug já corrigido acima (aquele era escrita de
-  JSONB via `encode_json` + cast `::jsonb`; note inclusive que a avaliação
-  registrada acima — "`Stega::Job::SendWelcomeNotification` usa
-  `JSON::PP::encode_json` para publicar no RabbitMQ ... contexto diferente, sem
-  o mesmo risco" — estava **errada**: o risco existe, só que a causa raiz não é
-  o `encode_json` em si, é a leitura anterior a ele).
+  dentro.
 
   → Confirmado **não específico** deste caso: reproduz com um script Perl
   isolado (sem Minion, sem RabbitMQ, sem HTTP), usando a mesma
@@ -573,14 +55,57 @@ Pendências levantadas em 2026-07-03 (registradas, não implementadas):
   Docker (Perl nativo, se disponível) reproduz — ajudaria a isolar se é algo
   da imagem `perl:5.42-slim` especificamente ou do ambiente em geral.
 
-  → Por que não foi corrigido agora: encontrado incidentalmente ao escrever
+  → Por que não foi corrigido ainda: encontrado incidentalmente ao escrever
   `t/070_notifications.t` (baseline de testes de fila para a ADR-022 do
-  repositório central, ainda `Proposta`) — é mais amplo que fila/RabbitMQ
-  (afeta leitura de `TEXT` em geral) e head raiz não foi encontrada; contornado
-  nos testes novos usando dados sem acentuação para não travar aquela tarefa.
-  Também explica uma falha intermitente observada em
-  `t/020_products_api.t` ("settings preserva acentuação — regressão UTF-8
-  2026-07-04") ao rodar a suíte duas vezes seguidas sem resetar o volume do
-  Postgres entre as execuções — a partir de um banco limpo esse teste passa
-  normalmente, então a causa ali provavelmente é a mesma classe de bug
-  aparecendo de forma não determinística, não uma regressão do código.
+  repositório central) — é mais amplo que fila/RabbitMQ (afeta leitura de
+  `TEXT` em geral) e a causa raiz não foi encontrada; contornado nos testes
+  usando dados sem acentuação para não travar aquela tarefa. Também explica
+  uma falha intermitente observada em `t/020_products_api.t` ("settings
+  preserva acentuação — regressão UTF-8") ao rodar a suíte duas vezes seguidas
+  sem resetar o volume do Postgres entre as execuções — a partir de um banco
+  limpo esse teste passa normalmente, então a causa ali provavelmente é a
+  mesma classe de bug aparecendo de forma não determinística, não uma
+  regressão do código.
+
+---
+
+Backlog levantado em 2026-07-08, ao escrever a ADR-024 do repositório central
+(pendência de pesquisa sobre Minion não rodar nativamente no Windows — ver
+`docs/adrs/ADR-024-jobs-assincronos-multiplataforma.md`). Mapear o uso real do
+Minion para aquela ADR revelou dois jobs prontos mas nunca disparados, e
+levantou a necessidade de uma auditoria maior de documentação:
+
+- [BACKLOG] `Stega::Job::CheckSlaBreaches` está registrado como task do Minion
+  (`Stega.pm::_setup_minion`) e totalmente implementado (varre tickets
+  abertos/em andamento, publica `ticket.sla_breached` para os que estourarem
+  SLA), mas **nunca é enfileirado em lugar nenhum** — não há `enqueue()` para
+  ele em nenhum Controller, nem CronJob do Kubernetes, nem `pg_cron`, nem
+  qualquer outro agendador. Implementar o disparo periódico (mecanismo exato a
+  decidir na implementação — CronJob do Kubernetes chamando `minion job -e
+  check_sla_breaches`, `pg_cron`, ou um processo próprio, similar ao
+  `script/pgque_ticker`). Valor de demonstração: verificação periódica de SLA é
+  um caso de uso real e comum de jobs em segundo plano, útil para mostrar esse
+  padrão na trilha de guias.
+
+- [BACKLOG] Mesma situação para `Stega::Job::GenerateActivityReport` — gera
+  estatísticas semanais de atividade por produto (abertos/em progresso/
+  resolvidos, tempo médio de resolução) e publica `report.weekly_ready`, mas
+  também nunca é enfileirado. Implementar o disparo periódico (provavelmente o
+  mesmo mecanismo escolhido para `check_sla_breaches` acima, já que os dois têm
+  a mesma necessidade de agendamento). Valor de demonstração: geração de
+  relatórios/estatísticas de acompanhamento de atividade de time é outro caso
+  de uso real de jobs em segundo plano, bastante comum em sistemas de tickets/
+  suporte além desta aplicação de referência.
+
+- [BACKLOG] Revisar todas as funcionalidades da Stega (a aplicação completa,
+  não só as duas pendências acima) para garantir que cada uma tenha: (a) um
+  manual de usuário no próprio repositório da Stega (documentação de uso da
+  aplicação já implantada — diferente dos Guias do repositório central, que
+  ensinam a *construir* o stack usando a Stega como referência) e (b) um guia
+  de desenvolvimento específico do cenário, cobrindo como aquela
+  funcionalidade foi implementada nesta aplicação. Ao implementar os dois itens
+  acima (agendamento de jobs periódicos), é provável que essa auditoria revele
+  a necessidade de guias novos que ainda não existem — nem no repositório
+  central nem na própria Stega — para esse cenário específico (jobs
+  agendados/periódicos), já que hoje a trilha de guias só cobre jobs
+  disparados por HTTP.

@@ -18,14 +18,42 @@ jobs:
           - "5.42"
 
     services:
-      postgres:
+      postgres-app:
         image: postgres:17-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres_dev
-          POSTGRES_DB: stega
+          POSTGRES_DB: stega-app
         ports:
-          - 5432:5432
+          - 55432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      postgres-jobs:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_dev
+          POSTGRES_DB: stega-jobs
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      postgres-events:
+        image: postgres:17-alpine    # imagem intocada — sem pg_cron nem extensão custom (ADR-022)
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_dev
+          POSTGRES_DB: stega-events
+        ports:
+          - 55434:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 5s
@@ -33,8 +61,17 @@ jobs:
           --health-retries 10
 
     env:
-      POSTGRESQL_URL: postgresql://postgres:postgres_dev@localhost:5432/stega
-      POSTGRESQL_MIGRATION_URL: postgresql://postgres:postgres_dev@localhost:5432/stega
+      POSTGRESQL_APP_URL: postgresql://localhost:55432/stega-app
+      POSTGRESQL_APP_USERNAME: postgres
+      POSTGRESQL_APP_PASSWORD: postgres_dev
+      POSTGRESQL_APP_MIGRATION_USERNAME: postgres
+      POSTGRESQL_APP_MIGRATION_PASSWORD: postgres_dev
+      POSTGRESQL_JOBS_URL: postgresql://localhost:55433/stega-jobs
+      POSTGRESQL_JOBS_USERNAME: postgres
+      POSTGRESQL_JOBS_PASSWORD: postgres_dev
+      POSTGRESQL_EVENTS_URL: postgresql://localhost:55434/stega-events
+      POSTGRESQL_EVENTS_USERNAME: postgres
+      POSTGRESQL_EVENTS_PASSWORD: postgres_dev
       TEST_JWT_SECRET: test_secret_apenas_para_desenvolvimento
 
     steps:
@@ -46,7 +83,6 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
             libpq-dev \
-            librabbitmq-dev \
             libssl-dev
 
       - name: Configurar Perl ${{ matrix.perl }}
@@ -76,6 +112,9 @@ jobs:
 
       - name: Aplicar migrations
         run: carton exec perl eng/migrate.pl
+
+      - name: Instalar PgQue em db-events
+        run: carton exec perl eng/bootstrap_pgque.pl
 
       - name: Executar testes
         run: carton exec prove -lr --timer t/

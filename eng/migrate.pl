@@ -9,8 +9,10 @@ use lib "$FindBin::Bin/../lib";
 use Mojo::Pg;
 use Stega::Config;
 
-my $config = Stega::Config::load();
-my $dsn    = $config->{postgresql}{migration_url} // $config->{postgresql}{url};
+my $app_cfg = Stega::Config::load()->{postgresql}{app};
+my $dsn     = Stega::Config::pg_dsn(
+    $app_cfg->{url}, $app_cfg->{migration_username}, $app_cfg->{migration_password}
+);
 
 my $pg = Mojo::Pg->new($dsn);
 

@@ -2,6 +2,8 @@ package Stega::Job::CheckSlaBreaches;
 use v5.42;
 use utf8;
 
+use Stega::Notification;
+
 sub run {
     my ($job) = @_;
 
@@ -46,7 +48,7 @@ sub run {
             } }
         );
 
-        Stega::Job::SendWelcomeNotification::_publish_notification($app, 'ticket.sla_breached', {
+        Stega::Notification::publish($app, 'ticket.sla_breached', {
             ticket_id    => $ticket->{id},
             title        => $ticket->{title},
             priority     => $ticket->{priority},

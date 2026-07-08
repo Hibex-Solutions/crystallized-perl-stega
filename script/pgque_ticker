@@ -1,0 +1,51 @@
+#!/usr/bin/env perl
+# script/pgque_ticker — tick de rotação do PgQue (ADR-022)
+#
+# Processo de execução da aplicação (ADR-013, revisão 2026-07-07), de longa
+# duração, ao lado de script/stega e script/worker — não uma ferramenta de
+# apoio ao desenvolvimento.
+#
+# EXATAMENTE UMA réplica: o PgQue não coordena chamadas concorrentes de
+# ticker() quando o agendamento é externo (fora do pg_cron) — duas réplicas
+# rodando ao mesmo tempo não têm nenhuma coordenação entre si.
+use v5.42;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+$| = 1;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Mojo::Pg;
+use Stega::Config;
+
+my $events_cfg = Stega::Config::load()->{postgresql}{events};
+my $db = Mojo::Pg->new(Stega::Config::pg_dsn(@{$events_cfg}{qw(url username password)}))->db;
+
+say '[pgque_ticker] Iniciado. Ctrl+C para encerrar.';
+
+my ($last_maint, $last_rotate_step2) = (0, 0);
+
+while (1) {
+    $db->query('select pgque.ticker()');
+
+    my $now = time;
+
+    # maint()/maint_retry_events() — não embutidas em ticker(), rodam a
+    # cada ~30s, cada chamada fora de transação explícita (autocommit natural
+    # do Mojo::Pg, satisfazendo a exigência de transações separadas do PgQue).
+    if ($now - $last_maint >= 30) {
+        $db->query('select pgque.maint()');
+        $db->query('select pgque.maint_retry_events()');
+        $last_maint = $now;
+    }
+
+    # maint_rotate_tables_step2() — NÃO opcional: o PgQue exige rotação em
+    # duas etapas, cada uma em transação própria. Sem chamar isto
+    # periodicamente, a rotação anti-bloat acontece uma única vez e nunca
+    # mais (ver ADR-022, "Tick de rotação").
+    if ($now - $last_rotate_step2 >= 10) {
+        $db->query('select pgque.maint_rotate_tables_step2()');
+        $last_rotate_step2 = $now;
+    }
+
+    select undef, undef, undef, 0.25;    # ~250ms entre ticks (dentro da faixa 100ms-1s)
+}

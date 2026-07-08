@@ -29,15 +29,28 @@ sub startup {
 sub _setup_database {
     my $self = shift;
 
-    my $pg = Mojo::Pg->new($self->config->{postgresql}{url});
+    # db-app — dados relacionais e JSONB (ADR-016/ADR-017). Instância própria,
+    # nunca compartilhada com db-jobs/db-events (ADR-023).
+    my $app_cfg = $self->config->{postgresql}{app};
+    my $pg = Mojo::Pg->new(Stega::Config::pg_dsn(@{$app_cfg}{qw(url username password)}));
     $pg->options->{pg_enable_utf8} = -1;    # auto: usa encoding do servidor (UTF-8)
     $self->helper(pg => sub { $pg });
+
+    # db-events — PgQue, fila de eventos multi-consumidor (ADR-022). Conexão
+    # DEDICADA, nunca reaproveitada de $self->pg (ver ADR-023).
+    my $events_cfg = $self->config->{postgresql}{events};
+    my $pg_events = Mojo::Pg->new(Stega::Config::pg_dsn(@{$events_cfg}{qw(url username password)}));
+    $pg_events->options->{pg_enable_utf8} = -1;
+    $self->helper(pg_events => sub { $pg_events });
 }
 
 sub _setup_minion {
     my $self = shift;
 
-    $self->plugin('Minion', Pg => $self->pg);
+    # db-jobs — backend do Minion, instância própria (ADR-023). Nunca
+    # $self->pg, que aponta para db-app.
+    my $jobs_cfg = $self->config->{postgresql}{jobs};
+    $self->plugin('Minion', Pg => Mojo::Pg->new(Stega::Config::pg_dsn(@{$jobs_cfg}{qw(url username password)})));
 
     $self->minion->add_task(
         send_welcome_notification => \&Stega::Job::SendWelcomeNotification::run

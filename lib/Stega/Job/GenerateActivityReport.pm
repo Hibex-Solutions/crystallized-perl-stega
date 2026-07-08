@@ -2,6 +2,8 @@ package Stega::Job::GenerateActivityReport;
 use v5.42;
 use utf8;
 
+use Stega::Notification;
+
 sub run {
     my ($job, $args) = @_;
 
@@ -35,7 +37,7 @@ sub run {
             stats        => $stats,
         };
 
-        Stega::Job::SendWelcomeNotification::_publish_notification($app, 'report.weekly_ready', $report);
+        Stega::Notification::publish($app, 'report.weekly_ready', $report);
 
         push @reports, $report;
     }

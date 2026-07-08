@@ -9,7 +9,8 @@ use lib "$FindBin::Bin/../lib";
 use Mojo::Pg;
 use Stega::Config;
 
-my $pg = Mojo::Pg->new(Stega::Config::load()->{postgresql}{url});
+my $app_cfg = Stega::Config::load()->{postgresql}{app};
+my $pg = Mojo::Pg->new(Stega::Config::pg_dsn(@{$app_cfg}{qw(url username password)}));
 my $db = $pg->db;
 
 my $count = $db->query('SELECT COUNT(*) AS n FROM products')->hash->{n} // 0;

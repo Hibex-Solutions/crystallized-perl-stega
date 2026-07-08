@@ -78,10 +78,14 @@ subtest 'settings preserva acentuação (regressão — bug de dupla codificaç�
     # codificada em UTF-8 de novo pelo DBD::Pg (pg_enable_utf8), corrompendo
     # qualquer caractere acentuado ("canção" virava "canÃ§Ã£o"). Corrigido
     # usando o marcador nativo { json => ... } do Mojo::Pg — ver TODO.txt.
-    my $slug = 'produto-acentuacao-' . time();
+    # Sufixo em name (não só slug): re-executar esta suíte sem resetar o
+    # banco falhava com 422 "nome já existe" na segunda vez — name também
+    # precisa ser único, o mesmo raciocínio que já vale para slug.
+    my $suffix = time() . '-' . $$;
+    my $slug   = "produto-acentuacao-$suffix";
     set_auth($admin_token);
     $t->post_ok('/api/v1/products' => json => {
-        name     => 'Produto Acentuação',
+        name     => "Produto Acentuação $suffix",
         slug     => $slug,
         settings => { nota => 'canção' },
     })->status_is(201)

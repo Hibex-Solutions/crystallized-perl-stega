@@ -28,8 +28,8 @@ requires 'Crypt::PRNG', '0.067';
 requires 'Minion';
 requires 'Minion::Backend::Pg';
 
-# Message broker (RabbitMQ)
-requires 'Net::AMQP::RabbitMQ', '2.40000';
+# Filas de eventos multi-consumidor: PgQue (ADR-022) é SQL puro, consumido
+# via Mojo::Pg (já declarado acima) — sem dependência própria no cpanfile.
 
 # JSON
 requires 'JSON::PP', '4.0';

@@ -1,0 +1,16 @@
+#!/usr/bin/env perl
+# script/worker — inicia o NotificationWorker (consumidor PgQue, ADR-022)
+#
+# Processo de execução da aplicação (ADR-013, revisão 2026-07-07), não uma
+# ferramenta de apoio ao desenvolvimento — por isso vive em script/, não
+# eng/, sem extensão .pl, ao lado de script/stega.
+use v5.42;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+$| = 1;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+
+use Stega::Worker::NotificationWorker;
+
+Stega::Worker::NotificationWorker::run();

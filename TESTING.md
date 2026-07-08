@@ -19,7 +19,8 @@ Execute sempre a partir do diretório raiz do repositório.
 
 - Docker Desktop em execução
 - PowerShell (os comandos `curl` deste guia usam sintaxe PowerShell)
-- Porta 3000 (app), 5432 (postgres), 5672/15672 (rabbitmq), 8080 (keycloak) livres
+- Portas livres: 3000 (app), 55432-55435 (as quatro instâncias PostgreSQL —
+  `db-app`/`db-jobs`/`db-events`/Keycloak, ADR-023), 8080 (keycloak)
 
 ---
 
@@ -46,10 +47,10 @@ docker compose --profile full --profile test build
 ## 3. Infraestrutura
 
 ```powershell
-docker compose up -d postgres rabbitmq keycloak
+docker compose up -d postgres-app postgres-jobs postgres-events postgres-keycloak keycloak
 ```
 
-Aguarde `postgres` e `rabbitmq` ficarem `healthy`:
+Aguarde as quatro instâncias PostgreSQL ficarem `healthy`:
 
 ```powershell
 docker compose ps
@@ -64,11 +65,25 @@ seguir direto para as próximas seções.
 
 ---
 
-## 4. Migrations e Seed
+## 4. Migrations, PgQue e Seed
 
 ```powershell
 docker compose --profile full run --rm migrate
+docker compose --profile full run --rm bootstrap-pgque
 docker compose --profile full run --rm seed
+```
+
+`bootstrap-pgque` instala o PgQue (vendorizado em `vendor/pgque/pgque.sql`) em
+`db-events` — passo idempotente e deliberadamente separado de `migrate`
+(ADR-022/ADR-023): "instalar o PgQue" não é "aplicar migrations do domínio".
+Saída esperada:
+
+```
+Instalando PgQue a partir de .../vendor/pgque/pgque.sql...
+Concedendo o papel pgque_admin a 'postgres'...
+Criando a fila 'stega.notifications' (idempotente)...
+Registrando o consumidor 'notification_worker' (idempotente)...
+PgQue instalado com sucesso em db-events.
 ```
 
 Saída esperada do seed:
@@ -92,8 +107,9 @@ Dados de desenvolvimento inseridos com sucesso:
 docker compose --profile full --profile test run --rm test
 ```
 
-Resultado esperado — 14 arquivos, todos `ok` (o `test` container precisa do
-RabbitMQ saudável — já garantido pela seção 3):
+Resultado esperado — 14 arquivos, todos `ok` (o `test` container precisa das
+três instâncias PostgreSQL saudáveis e do PgQue instalado em `db-events` — já
+garantido pelas seções 3 e 4):
 
 ```
 t/001_health.t ............. ok
@@ -128,15 +144,21 @@ Result: PASS
 | `040_auth.t` | Autenticação JWT |
 | `050_ticket_assignment.t` | Regras de atribuição e visibilidade histórica |
 | `060_business_rules.t` | Cobertura de todas as regras do BUSINESS.md |
-| `070_notifications.t` | Roteamento do `NotificationWorker` (`_dispatch`) e os 3 jobs Minion que publicam no RabbitMQ (`send_welcome_notification`, `check_sla_breaches`, `generate_activity_report`) — antes deste arquivo, só `process_webhook_payload` tinha cobertura e o caminho RabbitMQ/`NotificationWorker` não tinha nenhuma (ver ADR-022 no repositório central) |
+| `070_notifications.t` | Roteamento do `NotificationWorker` (`_dispatch`), os 3 jobs Minion que publicam eventos via PgQue (`send_welcome_notification`, `check_sla_breaches`, `generate_activity_report`), e o contrato de retry/nack do PgQue (evento reagendado após `nack` + `maint_retry_events`) — ver ADR-022 no repositório central |
 
 ---
 
 ## 6. Iniciar aplicação
 
 ```powershell
-docker compose --profile full up -d app minion-worker notification-worker
+docker compose --profile full up -d app minion-worker notification-worker pgque-ticker
 ```
+
+`pgque-ticker` é obrigatório para que o `notification-worker` receba qualquer
+evento — sem ele, `pgque.receive()` nunca materializa os lotes publicados
+(ver Guia 8/ADR-022 no repositório central). `docker compose ps` deve mostrar
+exatamente uma réplica desse serviço `Up` — nunca escale `pgque-ticker`
+horizontalmente.
 
 Aguarde o health check:
 
@@ -363,9 +385,9 @@ autenticação. O seed (seção 4) já cria uma credencial de cada origem com
 segredo fixo, só para este roteiro:
 
 ```powershell
-$genericCredId = (docker compose exec -T postgres psql -U postgres -d stega -tAc `
+$genericCredId = (docker compose exec -T postgres-app psql -U postgres -d stega-app -tAc `
   "SELECT id FROM webhook_credentials WHERE source='generic' AND name='Genérico (seed)' LIMIT 1").Trim()
-$githubCredId  = (docker compose exec -T postgres psql -U postgres -d stega -tAc `
+$githubCredId  = (docker compose exec -T postgres-app psql -U postgres -d stega-app -tAc `
   "SELECT id FROM webhook_credentials WHERE source='github' AND name='GitHub (seed)' LIMIT 1").Trim()
 $genericSecret = 'dev_secret_generic_webhook_stega_demo'
 $githubSecret  = 'dev_secret_github_webhook_stega_demo'
@@ -491,9 +513,50 @@ para manter sessões paralelas.
 | 4 | Rotacionar Segredo | Novo segredo mostrado; recarregar a página também o esconde |
 | 5 | Desativar | Badge muda para "Inativa" |
 | 6 | Ativar | Badge volta para "Ativa" |
-| 7 | Excluir (credencial "Teste UI", sem tickets vinculados) | Remove e volta para a lista |
-| 8 | Abra a credencial "GitHub (seed)" (com ticket vinculado, seção 8) | Botão Excluir substituído por aviso "Não pode ser excluída" |
-| 9 | Veja o Histórico da credencial | Mostra `created`, `secret_rotated`, `deactivated`, `activated` conforme os passos acima, cada um com o admin como ator |
+| 7 | Veja o Histórico na própria página da credencial "Teste UI" | Mostra `created`, `secret_rotated`, `deactivated`, `activated` conforme os passos acima, cada um com o admin como ator |
+| 8 | Excluir (credencial "Teste UI", sem tickets vinculados) | Remove e volta para a lista |
+| 9 | Abra a credencial "GitHub (seed)" (com ticket vinculado, seção 8) | Botão Excluir substituído por aviso "Não pode ser excluída"; histórico vazio — credencial criada pelo `eng/seed.pl` via SQL direto, fora do fluxo Domain+Repository que registra auditoria |
+
+---
+
+## 10. Verificação manual do PgQue (observabilidade via SQL)
+
+Confirma que a fila `stega.notifications` está ativa e o `notification_worker`
+está consumindo com lag baixo — sem ferramenta externa, só SQL puro
+(ADR-022):
+
+```powershell
+docker compose exec postgres-events psql -U postgres -d stega-events -c "select queue_name, queue_ntables, ticker_lag, ev_per_sec from pgque.get_queue_info();"
+```
+
+Resultado esperado — uma linha para `stega.notifications`, `queue_ntables`
+maior que zero, `ticker_lag` baixo (segundos, não minutos — se estiver alto
+ou crescendo, `pgque-ticker` provavelmente não está rodando):
+
+```
+     queue_name      | queue_ntables |   ticker_lag    | ev_per_sec
+----------------------+---------------+-----------------+------------
+ stega.notifications  |             2 | 00:00:12.599039 |          0
+```
+
+```powershell
+docker compose exec postgres-events psql -U postgres -d stega-events -c "select queue_name, consumer_name, lag, pending_events from pgque.get_consumer_info('stega.notifications');"
+```
+
+Resultado esperado — ao menos uma linha `consumer_name = notification_worker`
+com `pending_events` baixo (perto de zero se nenhum evento novo foi
+publicado recentemente):
+
+```
+     queue_name      |    consumer_name    |       lag       | pending_events
+----------------------+----------------------+------------------+----------------
+ stega.notifications  | notification_worker  | 00:00:18.096327  |              0
+```
+
+Se `notification_worker` não aparecer na lista, o processo
+`docker compose --profile full up -d notification-worker` ainda não chamou
+`pgque.subscribe()` — confirme que o container está `Up` e olhe os logs
+(`docker compose logs notification-worker`).
 
 ---
 
@@ -501,8 +564,9 @@ para manter sessões paralelas.
 
 ```
 [ ] Build sem erros (3 stages concluídos)
+[ ] bootstrap-pgque instala o PgQue em db-events (idempotente — rodar 2x não falha)
 [ ] keycloak-test-users garante os 3 usuários (idempotente — rodar 2x não duplica)
-[ ] 13 arquivos de teste, todos passando (Result: PASS)
+[ ] 14 arquivos de teste, todos passando (Result: PASS)
 [ ] GET /healthz → {"status":"ok"}
 [ ] GET /api → JSON da spec OpenAPI (não a UI da app)
 [ ] GET / sem login → redirect para /login (não mostra JSON)
@@ -530,4 +594,7 @@ para manter sessões paralelas.
 [ ] Admin tem dropdown completo + "— Sem responsável —"
 [ ] Admin altera status sem ser responsável
 [ ] Histórico exibe: ticket.created, assigned, status.changed
+[ ] pgque-ticker rodando com exatamente 1 réplica (nunca escalar)
+[ ] pgque.get_queue_info() mostra stega.notifications com ticker_lag baixo
+[ ] pgque.get_consumer_info() mostra notification_worker com pending_events baixo
 ```
